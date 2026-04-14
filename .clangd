@@ -1,0 +1,58 @@
+# .clangd 完整配置文件
+
+CompileFlags:
+  Add: [
+    # 基础警告
+    -Wunused-variable,
+    -Wfloat-conversion,
+    -Wshadow,
+    -Wunused-parameter,
+    -Wformat,
+    -Wformat-nonliteral,
+    -Wformat-security,
+    -Wformat-pedantic,
+    # 将转换警告提升为严重错误 (Error)
+    # "-Werror=conversion",
+    "-Werror=sign-conversion",
+    # 允许的语言标准 (可选，根据你的项目修改)
+    "-std=c++20"
+  ]
+
+Diagnostics:
+  ClangTidy:
+    Add: [
+      modernize*, 
+      readability-implicit-bool-conversion, 
+      readability-magic-numbers
+    ]
+    Remove: [
+      # 禁用“必须使用尾置返回类型”的提示
+      modernize-use-trailing-return-type
+    ]
+    CheckOptions:
+      # 命名规范：命名空间使用小写
+      readability-identifier-naming.NamespaceCase: lower_case
+
+InlayHints:
+  Enabled: true
+  ParameterNames: true
+  DeducedTypes: true
+  Designators: true
+  BlockEnd: true
+  TypeNameLimit: 0
+
+Hover:
+  ShowAKA: true
+
+CrossFileReferences: true
+
+SemanticHighlighting: true
+
+Completion:
+  IncludeIneligibleResults: true
+  AllScopes: true
+  Filter: true
+  Sort: true
+
+Index:
+  Background: Build

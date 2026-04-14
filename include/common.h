@@ -1,0 +1,2 @@
+#pragma one
+#include <iostream>
