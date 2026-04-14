@@ -109,11 +109,16 @@ public:
     }
 };
 
-void test06() {
-    Func1 f1;
+std::vector<int>& a() {
+    std::vector<int> r;
+    // xxx
+    // xx
+    return r;
+}
 
-    std::thread t1{&Func1::test, &f1, 10};
-    t1.join();
+void test06() {
+    auto b = a();
+    // xxx
 }
 
 void Example01() {
