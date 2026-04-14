@@ -110,10 +110,10 @@ public:
 };
 
 std::vector<int>& a() {
-    std::vector<int> r;
+    std::vector<int>* r = new std::vector<int>{1, 2, 3};
     // xxx
     // xx
-    return r;
+    return *r;
 }
 
 void test06() {
@@ -121,8 +121,30 @@ void test06() {
     // xxx
 }
 
+void f1() {};
+void f2() {};
+
+void test07() {
+    std::thread t1{f1};
+    // std::thread t2 = std::move(t1);
+    std::thread t2{std::move(t1)};
+
+    t1 = std::thread(f2);
+
+    std::thread t3{};
+
+    t3 = std::move(t2);
+
+    t1 = std::move(t3);
+}
+
+void test08() {
+    printf("[%d]\n", std::thread::hardware_concurrency());
+}
 void Example01() {
-    test06();
+    test08();
+    // test07();
+    // test06();
     // test05();
     // test04();
     // test03();
