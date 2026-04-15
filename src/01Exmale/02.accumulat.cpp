@@ -75,8 +75,8 @@ static void test03() {
 
 static void test04() {
     std::vector<int> dogs = {1, 2, 3, 4};
-    auto& f1 = dogs[1];  // -> int *f1 = dogs + 1;
 
+    auto& f1 = dogs[1];  // -> int *f1 = dogs + 1;
     for (size_t i = 0; i < 100000; ++i) {
         dogs.push_back(i * 10);
     }
@@ -88,8 +88,23 @@ static void test04() {
     printf("%p\n", &dogs[1]);
 }
 
+static void test05() {
+    int i = 10;
+    std::thread t1{[](int& i) {
+                       for (int u = 0; u < 1000; ++u) {
+                           printf("u[%d]\n", u);
+                       }
+
+                       i = 100;
+                   },
+                   std::ref(i)};
+    t1.detach();
+}
+
 void Accumlat02() {
-    test04();
+    test05();
+    getchar();
+    // test04();
     // test03();
     // test02();
 }
