@@ -73,7 +73,23 @@ static void test03() {
     t2.join();
 }
 
+static void test04() {
+    std::vector<int> dogs = {1, 2, 3, 4};
+    auto& f1 = dogs[1];  // -> int *f1 = dogs + 1;
+
+    for (size_t i = 0; i < 100000; ++i) {
+        dogs.push_back(i * 10);
+    }
+
+    f1 = 100;  // -> *f1 = 100
+
+    printf("f1[%d],dogs_1[%d]\n", f1, dogs[1]);
+    printf("%p\n", &f1);
+    printf("%p\n", &dogs[1]);
+}
+
 void Accumlat02() {
-    test03();
+    test04();
+    // test03();
     // test02();
 }

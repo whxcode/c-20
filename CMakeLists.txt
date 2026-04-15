@@ -20,6 +20,21 @@ file(GLOB_RECURSE ALL_SOURCES
 # 这样你在代码里写 #include "01Exmale/01.example.h" 就能直接识别
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
+# ---------------------------------------------------------
+# 恒兴的专属调试配置：ASan + 禁优化 + GDB挂起支持
+# ---------------------------------------------------------
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+  # 删掉了 -fno-limit-debug-info，改用 GCC 认可的 -g3
+  # -O0: 核心！禁止优化，防止 dogs 变量消失
+  # -g3: 包含最详细的调试信息
+  set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3 -fsanitize=address -fno-omit-frame-pointer")
+
+  set(CMAKE_EXE_LINKER_FLAGS_DEBUG "-fsanitize=address")
+
+  message(STATUS "DEBUG MODE: GCC Compatible symbols enabled.")
+endif()
+# --------------------
+
 # 5. 生成可执行程序
 add_executable(study_app ${ALL_SOURCES})
 

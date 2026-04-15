@@ -1,29 +1,40 @@
 #!/bin/bash
 
-# 1. 定义 build 文件夹名称
-BUILD_DIR="build"
+# 1. 确保在脚本所在目录执行，避免路径混乱
+SOURCE_DIR=$(
+  cd $(dirname $0)
+  pwd
+)
+BUILD_DIR="$SOURCE_DIR/build"
 
-# 2. 如果不存在 build 目录则创建，如果存在则直接进入
-if [ ! -d "$BUILD_DIR" ]; then
-  mkdir "$BUILD_DIR"
-fi
-
-# 3. 进入 build 目录
-cd "$BUILD_DIR" || exit
-
-# 4. 运行 CMake 配置
-# 使用 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON 确保 clangd 始终有最新的索引
-cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-
-# 5. 编译项目
-# 使用 -j$(nproc) 可以利用多核并行编译，速度更快
-make -j$(nproc)
-
-# 6. 检查编译是否成功
-if [ $? -eq 0 ]; then
-  echo -e "\n---------------- 执行结果 ----------------"
-  # 运行程序（假设你的可执行文件名是 study_app）
-  ./study_app
+# 2. 深度清理与重新构建 (确保 p dogs 能生效)
+echo "--- 正在初始化 Debug 构建环境 ---"
+if [ -d "$BUILD_DIR" ]; then
+  rm -rf "$BUILD_DIR/*"
 else
-  echo -e "\n❌ 编译失败，请检查代码错误。"
+  mkdir -p "$BUILD_DIR"
 fi
+
+cd "$BUILD_DIR"
+
+# 3. 强制开启 Debug 模式并编译
+cmake -DCMAKE_BUILD_TYPE=Debug ..
+if [ $? -ne 0 ]; then
+  echo "CMake 配置失败！"
+  exit 1
+fi
+
+make -j$(nproc)
+if [ $? -ne 0 ]; then
+  echo "编译失败！"
+  exit 1
+fi
+
+# 4. 配置 ASan 环境变量：发现错误立即触发 SIGABRT 给 GDB 捕获
+export ASAN_OPTIONS=abort_on_error=1
+
+echo "--- 正在启动 GDB 调试 (已开启 ASan) ---"
+
+# 5. 启动 GDB 并直接运行
+# -ex "run": 启动后自动跑起来，直到撞到 f1 = 100 报错
+gdb -ex "run" "./study_app"
