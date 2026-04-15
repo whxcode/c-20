@@ -2,6 +2,7 @@
 
 #include <condition_variable>
 #include <cstddef>
+#include <list>
 #include <mutex>
 #include <queue>
 #include <thread>
@@ -111,7 +112,46 @@ static void test02() {
     for (auto& t : consumers) t.join();
 }
 
+template <typename T>
+class List {
+public:
+    void push(T v) {
+        // std::lock_guard m(mtx);
+
+        data.push_back(v);
+    }
+
+    size_t size() {
+        return data.size();
+    }
+
+private:
+    std::vector<T> data;
+    std::mutex mtx;
+};
+
+static void test03() {
+    List<size_t> l;
+    std::vector<std::thread> producers;
+    size_t maxThreads = 1000;
+
+    for (size_t i = 0; i < maxThreads; ++i) {
+        producers.emplace_back(
+            [&l](size_t i) {
+                l.push(i);
+            },
+            i);
+    }
+
+    for (size_t i = 0; i < maxThreads; ++i) {
+        producers[i].join();
+    }
+
+    printf("[%zu]\n", l.size());
+}
+
 void DataShared03() {
-    test02();
+    test03();
+    // test02();
     // test01();
 }
