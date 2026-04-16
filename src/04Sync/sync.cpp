@@ -147,21 +147,13 @@ static void test03() {
     std::vector<std::thread> consumers;
     for (int i = 0; i < 2; ++i) {
         consumers.emplace_back([&chan, i]() {
-            while (true) {
-                printf("--- 消费者 %d 取走了数据 %d\n", i, chan.pop());
+            int t{0};
 
-                if (chan.isClosed() && chan.size() == 0) {
-                    printf(">>> 消费者 %d 发现通道已关闭且没有数据了，正在退出...\n", i);
-                    break;
-                }
+            while (chan.pop(t)) {
+                printf("--- 消费者 %d 取走了数据 %d\n", i, t);
             }
 
-            /*
-            for (int j = 0; j < 10; ++j) {  // 消费者胃口太小，
-                // for (int j = 0; j < 20; ++j) { // 生产者已经关闭了。一直卡死
-                printf("--- 消费者 %d 取走了数据 %d\n", i, chan.pop());
-            }
-                 */
+            printf(">>> 消费者 %d 发现通道已关闭且没有数据了，正在退出...\n", i);
         });
     }
 

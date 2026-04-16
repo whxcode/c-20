@@ -1,5 +1,5 @@
 #include <cstddef>
-#pragma one
+#pragma once
 #include <condition_variable>
 #include <mutex>
 #include <queue>
@@ -25,17 +25,21 @@ public:
     }
 
     void push(T&& v) {
+        if (isClosed()) {
+            return;
+        }
+
         std::unique_lock m{mtx};
+
+        // 小于实际容量，可以继续 push;否则阻塞
+        producerCv.wait(m, [this] {
+            return data.size() < cap || isClosed();  // 队列未满时；可以继续生产
+        });
 
         if (isClosed()) {
             printf(">>> 队列已关闭，无法继续 push 数据\n");
             return;
         }
-
-        // 小于实际容量，可以继续 push;否则阻塞
-        producerCv.wait(m, [this] {
-            return data.size() < cap;
-        });
 
         data.push(std::move(v));
 
@@ -48,7 +52,7 @@ public:
         push(std::move(c));
     }
 
-    T pop() {
+    bool pop(T& v) {
         std::unique_lock m{mtx};
 
         consumerCv.wait(m, [this] {
@@ -56,16 +60,16 @@ public:
         });
 
         if (isClosed() && data.empty()) {
-            return T{};
+            return false;
         }
 
-        T v = std::move(data.front());
+        v = std::move(data.front());
         data.pop();
 
         m.unlock();
         producerCv.notify_one();
 
-        return v;
+        return true;
     }
 
     size_t size() {
