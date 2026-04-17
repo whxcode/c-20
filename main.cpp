@@ -4,7 +4,8 @@
 #include "include/04Sync/sync.h"
 
 int main() {
-    Sync04();
+    Future();
+    // Sync04();
     // DataShared03();
     // Accumlat02();
     // Example01();
