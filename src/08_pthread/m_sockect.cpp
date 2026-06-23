@@ -2,6 +2,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <unistd.h>
 
 #include <cstdint>
 #include <cstdio>
@@ -172,14 +173,35 @@ static void test07() {
     serv.sin_addr.s_addr = htonl(INADDR_ANY);  // int 型
 
     if (bind(lfd, (sockaddr*)&serv, servLen) == -1) {
-        perror("bind");
+        perror("--bind--");
     }
 
     if (listen(lfd, 10) == -1) {
         perror("listen");
     }
 
-    auto cfd = accept(lfd, nullptr, nullptr);
+    // 在 accpet 之前；就可能建立了链接
+    // sleep(100);
+    // 调用 accpet 是从链接队列中；哪一个出来
+
+    sockaddr_in cAddr{};
+    socklen_t cAddrLen = sizeof(cAddr);
+    auto cfd = accept(lfd, (sockaddr*)&cAddr, &cAddrLen);
+
+    char sIp[16]{0};
+    memset(sIp, 0, sizeof(sIp));
+
+    // 网络字节序->转为ip
+    inet_ntop(AF_INET, &cAddr.sin_addr.s_addr, sIp, sizeof(sIp));
+    printf("ip [%s]\n", sIp);
+    std::cout << "port" << ntohs(cAddr.sin_port) << std::endl;
+
+    /**
+     * 调用 accpet 函数；并不是新建立一个链接
+     * 而是从已链接队列中取出一个可用的链接。
+     * 如果链接队列为空；会阻塞
+     *
+     * */
 
     printf("lfd[%d], cfd[%d]\n", lfd, cfd);
 
@@ -191,6 +213,12 @@ static void test07() {
         // 接受数据
         memset(buf, 0, sizeof(buf));
         n = recv(cfd, buf, sizeof(buf), 0);
+
+        if (n <= 0) {
+            printf(" read error or client exit [%d]\n", n);
+            break;
+        }
+
         printf("n == [%d],buf =[%s]\n", n, buf);
 
         for (i = 0; i < n; ++i) {
@@ -200,6 +228,9 @@ static void test07() {
         // 写回数据
         send(cfd, buf, (size_t)n, 0);
     }
+
+    close(lfd);
+    close(cfd);
 }
 
 }  // namespace Base
