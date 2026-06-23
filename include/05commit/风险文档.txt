@@ -1,0 +1,86 @@
+• 先说结论：你现在这套 CommitServer + Collector + History，已经有了 undo/redo 的基本骨
+  架，但离“企业级管理”还差一截。主要不是“双队列还是单队列”，而是这套历史系统还没有把“历
+  史记录的正确性、稳定性、可恢复性”压实。
+
+  主要问题
+
+  ---1. 严重：Model 的 id 不是稳定主键，删除后再新增会复用旧 id，历史会串掉。
+     你现在在 src/05.commit/document.cpp:35 用 models.size() 生成 id。删除一个图层后，再
+     新建图层，很可能拿到旧 id。但历史里的 PatchItem.id 还引用这个 id，undo/redo 时就可
+     能作用到错误对象。这类系统里，id 必须是“全局唯一且不复用”的。
+
+  ---2. 严重：当前并没有真正支持“用户主动删除图层”的历史采集。
+     include/05commit/collector.h:30 只实现了 dataChanged() 和 addChildren()，对应“属性
+     修改”和“新增图层”。但没有“removeChildren()`”之类的采集入口。
+     这意味着你目前能 undo “新增图层”，但还不能完整支持“删除已有图层再 undo 回来”这条业
+     务。
+
+----3. 严重：Document::mergePatch() 遇到一个坏 patch 会直接 return，导致一次事务只执行一
+     半。
+     见 src/05.commit/document.cpp:95。
+     在 zModifyProps 和 zRemoveChild 分支里，如果 getModel(item.id) 失败，你直接 return
+     整个函数。这会造成：
+      - 前面的 patch 已经生效
+      - 后面的 patch 完全没执行
+      - 文档进入“半应用状态”
+        企业级 undo/redo 最忌讳这种“部分成功、部分失败但没有回滚”。
+
+  --- 4. 严重：Document::getModel() 用 operator[]，查不到时会悄悄插入空值。
+     见 src/05.commit/document.cpp:77。
+     modelMap[id] 如果没找到，会新建一个 nullptr 条目。这会污染状态，也会掩盖错误。历史
+     系统里，查不到对象应该是明确失败，不应该顺手改数据结构。
+
+  ---5. 高风险：Document::commit() 即使没有任何变更，也会返回一个空的 PatchPair，历史会出现
+     空操作。
+     见 src/05.commit/document.cpp:62。
+     你先 make_optional<PatchPair>()，然后无论 collectors 有没有内容都直接返回。
+     所以 src/05.commit/commitServer.cpp:19 里的 if (pair.has_value()) 基本总是成立，空
+     提交也会进历史。企业级历史里，空操作不能占用一条 undo 记录。
+
+---6. 高风险：SingleQueueHistory 当前实现有容量边界 bug。
+     见 include/05commit/history.h:77。
+     你是先：
+      - while (records.size() > MAX_HISTORY_SIZE) pop_front();
+      - 再 push_back()
+        这样当 size == MAX_HISTORY_SIZE 时，不会先删，push 完就会变成 MAX + 1。正确语义
+        应该是“追加后不能超上限”或“追加前如果已满先淘汰一条”。
+
+  ---7. 高风险：IHistory 没有虚析构，CommitServer 还在强制转型删除具体类。
+     见 include/05commit/history.h:7 和 src/05.commit/commitServer.cpp:14。
+     这会让接口抽象失去意义，而且非常脆弱。你现在切 DoubleQueueHistory /
+     SingleQueueHistory 还要改析构写法，这不是可维护设计。
+
+  ---8. 高风险：patch 顺序目前不稳定，复杂事务下可能出错。
+     见 include/05commit/collector.h:73 是 unordered_map，src/05.commit/collector.cpp:32
+     遍历它生成 patch。
+     属性修改、增删图层一旦互相依赖，patch 执行顺序就很重要。unordered_map 遍历顺序不稳
+     定，企业级实现通常会保留“操作发生顺序”或定义清晰的 patch 排序规则。
+
+  xxxx9. 中风险：PatchItem.props 用 std::any，类型安全和序列化能力都弱。
+     见 include/05commit/collector.h:19。
+     demo 阶段可以，但工程化后问题会很多：
+      - 运行时 any_cast 失败
+      - 不利于持久化
+      - 不利于网络同步
+      - 不利于调试和审计日志
+
+  10. 中风险：当前没有真正的“事务边界”概念，只有“collect 后统一 commit”。
+     你现在是 collector 收集一段时间，再由 src/05.commit/document.cpp:62 扫描所有
+     collector 拼成一个 PatchPair。
+     这能工作，但企业级通常还需要：
+      - 明确的 begin/end transaction
+      - 一个事务里的多步修改要么全成，要么全不成
+      - 支持命名事务，比如“移动图层”“批量改名”“删除图层组”
+
+  11. 中风险：当前只实现了“状态回放”，缺少“历史状态查询接口”。
+     History 里没有 canUndo() / canRedo() / clear() / size() / currentIndex() 之类接口。
+     企业级编辑器通常 UI、快捷键、菜单状态都会依赖这些接口。
+
+  12. 中风险：没有“失败处理策略”和测试矩阵。
+     undo/redo 系统真正难的是边界：
+      - 删除后 undo 再 redo
+      - undo 到一半后插入新操作
+      - 批量属性修改
+      - patch 中途失败
+      - 容量淘汰后还能否保持一致
+        这些现在从结构上看都没有被系统性约束。

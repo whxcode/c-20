@@ -1,0 +1,15 @@
+BasedOnStyle: Google
+UseTab: Never
+IndentWidth: 4
+TabWidth: 4
+ColumnLimit: 100
+AccessModifierOffset: -4
+
+# 核心修改：禁止 Lambda 函数合并到一行
+AllowShortLambdasOnASingleLine: None
+# 核心修改：禁止普通函数合并到一行
+AllowShortFunctionsOnASingleLine: None
+
+PointerAlignment: Left
+ReferenceAlignment: Left
+DerivePointerAlignment: false

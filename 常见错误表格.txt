@@ -1,0 +1,129 @@
+ASan 常见错误速查表
+
+1. stack-buffer-overflow
+含义：
+栈内存越界
+
+常见原因：
+□ 数组下标越界
+□ int 当 long/intptr_t 读取
+□ 读取字节数大于变量大小
+
+记忆：
+"读多了"、"写多了"
+
+
+2. heap-buffer-overflow
+含义：
+堆内存越界
+
+常见原因：
+□ new[3] 却访问 arr[3]
+□ vector 越界访问
+
+记忆：
+"堆数组越界"
+
+
+3. stack-use-after-scope
+含义：
+局部变量已经失效
+
+常见原因：
+□ pthread 传 &i
+□ lambda 捕获局部变量引用
+□ 保存局部变量地址
+
+记忆：
+"变量还没死透，但已经出作用域了"
+
+
+4. stack-use-after-return
+含义：
+函数返回后继续访问栈变量
+
+常见原因：
+□ return &localVar
+
+记忆：
+"函数死了还在用它的变量"
+
+
+5. heap-use-after-free
+含义：
+释放后继续访问
+
+常见原因：
+□ delete 后继续使用
+□ free 后继续使用
+
+记忆：
+"尸体复活"
+
+
+6. double-free
+含义：
+同一块内存释放两次
+
+常见原因：
+□ delete p
+□ delete p
+
+记忆：
+"同一个人埋了两次"
+
+
+7. SEGV on address 0x0
+含义：
+空指针
+
+常见原因：
+□ p == nullptr
+□ *p
+
+记忆：
+"空指针"
+
+
+8. SEGV on address 0x11
+含义：
+非法地址
+
+常见原因：
+□ (void*)10
+□ *(int*)data
+
+记忆：
+"把数字当地址"
+
+
+9. memory-leak
+含义：
+内存泄漏
+
+常见原因：
+□ new 没 delete
+□ malloc 没 free
+
+记忆：
+"申请了没还"
+
+
+pthread 专属口诀
+
+□ 传值：
+   (void*)10
+   -> (intptr_t)data
+
+□ 传地址：
+   &x
+   -> *(int*)data
+
+□ 传什么类型
+   就按什么类型取
+
+□ 线程拿到局部变量地址
+   先怀疑 stack-use-after-scope
+
+□ delete 后线程还在访问
+   先怀疑 heap-use-after-free

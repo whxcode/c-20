@@ -1,0 +1,5 @@
+.codex
+build
+.cache
+out
+*.s
