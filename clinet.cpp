@@ -1,16 +1,56 @@
 #include <netinet/in.h>
-#include <stdatomic.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 #include <cstdio>
 #include <cstring>
+#include <iterator>
+
+#include "include/patch.hpp"
 
 int main() {
+    // 1. 客户端：创建一个“文件地址”类型的 Patch
+    Patch client_patch(1, "/home/wang/bigfile.mp4");
+
+    // 2. 客户端序列化：变成一串可以在网络上传输的 byte 流
+    std::vector<uint8_t> net_bytes = client_patch.serialize();
+    std::cout << "网络传输的字节数: " << net_bytes.size() << " 字节\n";
+
+    auto cfd = socket(AF_INET, SOCK_STREAM, 0);
+    sockaddr_in server{.sin_family = AF_INET,
+                       .sin_port = htons(8081),
+                       .sin_addr = {
+                           .s_addr = htonl(INADDR_ANY),
+                       }};
+    if (connect(cfd, (sockaddr*)&server, sizeof(server)) < 0) {
+        perror("connect error:");
+    }
+
+    while (1) {
+        if (send(cfd, net_bytes.data(), net_bytes.size(), 0) < 0) {
+            perror("send error:");
+        }
+    }
+
+    /*
+      Patch server_patch;
+      if (server_patch.deserialize(net_bytes)) {
+          std::cout << "【服务端解析成功】\n";
+          std::cout << "Mime 类型: " << server_patch.getMime() << " (1代表文件地址)\n";
+          std::cout << "收到数据: " << server_patch.getData() << "\n";
+      } else {
+          std::cout << "解析失败！\n";
+      }
+    */
+
+    return 0;
+}
+
+int main1() {
     auto cfd = socket(AF_INET, SOCK_STREAM, 0);
     sockaddr_in serv;
     serv.sin_family = AF_INET;
-    serv.sin_port = htons(8080);               // short 型
+    serv.sin_port = htons(8081);               // short 型
     serv.sin_addr.s_addr = htonl(INADDR_ANY);  // int 型
                                                //
 
@@ -21,23 +61,23 @@ int main() {
     }
 
     int n = 0;
-    char buf[256]{0};
+    char buf[1024]{0};
+
     while (1) {
         memset(buf, 0, sizeof(buf));
         // 这一步很重要；等待用户下一步请求；而不是直接
         // send/recv 否则会出现死循环
-        n = read(STDERR_FILENO, buf, sizeof(buf));
+        n = read(STDERR_FILENO, buf, sizeof(buf) - 1);
 
         send(cfd, buf, (size_t)n, 0);
-        memset(buf, 0, sizeof(buf));
-        n = read(cfd, buf, sizeof(buf));
 
         if (n <= 0) {
             printf("read error or server exit [%d]\n", n);
             break;
         }
 
-        printf("n == [%d],buf =[%s]\n", n, buf);
+        // printf("[%d]RECV: %s\n", n, buf);
+        // printf("n == [%d],buf =[%s]\n", n, buf);
     }
 
     close(cfd);

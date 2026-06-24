@@ -9,6 +9,7 @@
 #include <cstring>
 
 #include "include/08_pthread/m_pathred.h"
+#include "include/patch.hpp"
 
 namespace Base {
 union {
@@ -152,6 +153,65 @@ static void test06() {
     send(cfd, "hello\n", 6, 0);
 }
 
+int readn(int fd, void* buf, int n) {
+    // 本次需要读取多少个字符
+    int lleft{n};
+    char* head{(char*)buf};
+
+    while (lleft > 0) {  // 直接用 lleft > 0 作为循环条件，更优雅
+        auto readLen = recv(fd, head, (size_t)lleft, 0);
+
+        if (readLen < 0) {
+            if (errno == EINTR) {
+                // 被系统信号中断，属于正常现象，继续重试 recv
+                continue;
+            }
+            // 真正发生网络错误（如连接被重置），如果已经读了部分数据，先返回读到的量
+            return (n - lleft > 0) ? (int)(n - lleft) : -1;
+        } else if (readLen == 0) {
+            // 对端关闭了连接，同理，先返回已经读到的字节数
+            return (int)(n - lleft);
+        }
+
+        head += readLen;
+        lleft -= (size_t)readLen;
+    }
+
+    return n;
+}
+
+static void readHeader(int fd) {
+    char buf[1024]{0};
+    memset(buf, 0, sizeof(buf));
+    auto n = readn(fd, buf, 8);
+    if (n != 8) {
+        std::cout << "readHeader error" << std::endl;
+    }
+
+    auto dataLen = *(int*)(buf + 4);
+    std::cout << "mine:" << *(int*)buf << std::endl;
+    std::cout << "len:" << dataLen << std::endl;
+    n = readn(fd, buf + 8, dataLen);
+
+    if (n != dataLen) {
+        std::cout << "readBody error" << std::endl;
+    }
+
+    std::vector<uint8_t> vec(reinterpret_cast<const uint8_t*>(buf),
+                             reinterpret_cast<const uint8_t*>(buf) + 8 + dataLen);
+
+    Patch server_patch;
+    if (server_patch.deserialize(vec)) {
+        std::cout << "【服务端解析成功】\n";
+        std::cout << "Mime 类型: " << server_patch.getMime() << " (1代表文件地址)\n";
+        std::cout << "收到数据: " << server_patch.getData() << "\n";
+    } else {
+        std::cout << "解析失败！\n";
+    }
+
+    std::cout << buf << std::endl;
+}
+
 static void test07() {
     // tcp 程序
     // 1. 创建 socket
@@ -169,7 +229,7 @@ static void test07() {
     bzero(&serv, servLen);
 
     serv.sin_family = AF_INET;
-    serv.sin_port = htons(8080);               // short 型
+    serv.sin_port = htons(8081);               // short 型
     serv.sin_addr.s_addr = htonl(INADDR_ANY);  // int 型
 
     if (bind(lfd, (sockaddr*)&serv, servLen) == -1) {
@@ -212,21 +272,37 @@ static void test07() {
     while (1) {
         // 接受数据
         memset(buf, 0, sizeof(buf));
-        n = recv(cfd, buf, sizeof(buf), 0);
+        readHeader(cfd);
+
+        // return;
+        // n = readn(cfd, buf, 8);
+        printf("n===>[%d]\n", n);
 
         if (n <= 0) {
             printf(" read error or client exit [%d]\n", n);
             break;
         }
 
-        printf("n == [%d],buf =[%s]\n", n, buf);
+        for (size_t i{0}; i < n; ++i) {
+            if (buf[i] == '\n') {
+                putchar('-');
+                continue;
+            }
+
+            putchar(buf[i]);
+        }
+
+        printf("\n");
+        // fflush(stdout);  // ✨ 强行刷新！不管有没有 \n，把 '3' 立刻按在屏幕上
+        //  printf("n == [%d],buf =[%s]\n", n, buf);
+        //  printf("[%d],RECV: %s", n, buf);
 
         for (i = 0; i < n; ++i) {
             buf[i] = toupper(buf[i]);
         }
 
         // 写回数据
-        send(cfd, buf, (size_t)n, 0);
+        send(cfd, buf, 4, 0);
     }
 
     close(lfd);
