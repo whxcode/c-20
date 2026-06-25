@@ -1,15 +1,60 @@
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <sys/_pthread/_pthread_mutex_t.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <thread>
 
 #include "include/08_pthread/m_pathred.h"
+#include "include/SafeQueue.hpp"
 #include "include/patch.hpp"
+/**
+ * 初始值: 没有
+ * 我的 SEQ: 填写上一次对方给我的 ACK
+ * 我的 ACK: 填写上一次对方给我的 SEQ + 对方这次发送过来的数据大小
+ *
+ * 链接:
+ * client syn:1000 -> server
+ *
+ * server syn:2000,ack 1001 -> client
+ *
+ * client seq:1001,ack 2001 -> client
+ *
+ * 数据传输
+ *
+ * client seq: 1001(10),ack: 2001 -> server
+ * client seq: 1011(10),ack: 2001 -> server
+ * client seq: 1021(10),ack: 2001 -> server
+ *
+ * server seq: 2001,ack: 2032(最后一次;是 1021+10,加上 seq 占用一个位) -> client
+ *
+ * ACK 固定回复
+ * SEQ 数据位置
+ * FIN 请求关闭
+ * SYN 请求链接
+ *
+ *
+ *
+ * SYN：递过去一份空合同（请求建立关系）。
+ * SEQ：合同的正文页码（第一页、第二页……）。
+ * ACK：你在合同每页右下角签的字、盖的章（确认收到前一页，催促下一页）。
+ * FIN：合同的最后一页，盖章终止（关系结束）。
+ *
+ * */
+
+/**
+ *
+ *
+ *
+ *
+ *
+ *
+ * */
 
 namespace Base {
 union {
@@ -309,10 +354,142 @@ static void test07() {
     close(cfd);
 }
 
+static int MSocket(const int listenNum) {
+    // 服务的
+
+    auto sfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sfd == -1) {
+        perror("socket: ");
+        return -1;
+    }
+
+    sockaddr_in addr{.sin_family = AF_INET,
+                     .sin_port = htons(8081),
+                     .sin_addr =
+                         {
+                             .s_addr = htonl(INADDR_ANY),
+                         }
+
+    };
+
+    size_t addrLen = sizeof(addr);
+
+    if (bind(sfd, (sockaddr*)&addr, addrLen) < 0) {
+        perror("bind: ");
+        return -1;
+    }
+
+    if (listen(sfd, 10) < 0) {
+        perror("listen: ");
+        return -1;
+    }
+
+    return sfd;
+}
+
+char buf[1024]{0};
+
+struct Patch {
+    char* buf{nullptr};
+    int readN{0};
+};
+
+SystemSafeQueue<Patch> queue{10};
+int ssfd{0};
+pthread_mutex_t mtx;
+bool clientClose{false};
+
+static void test08() {
+    auto sfd = MSocket(10);
+    auto cfd = accept(sfd, nullptr, nullptr);
+    ssfd = sfd;
+    pthread_mutex_init(&mtx, nullptr);
+
+    pthread_t reader;
+    pthread_t writer;
+
+    pthread_create(
+        &reader, nullptr,
+        [](void* arg) -> void* {
+            int* cfdPtr = (int*)arg;
+            int cfd = *cfdPtr;
+
+            while (1) {
+                auto n = recv(cfd, buf, sizeof(buf), 0);
+                if (n < 0) {
+                    if (errno == EINTR) {
+                        continue;
+                    }
+
+                    perror("read error: ");
+                } else if (n == 0) {
+                    std::cout << "client close,accpet next clinet. " << std::endl;
+                    close(cfd);
+
+                    pthread_mutex_lock(&mtx);
+                    *cfdPtr = accept(ssfd, nullptr, nullptr);
+                    cfd = *cfdPtr;
+                    clientClose = true;
+                    pthread_mutex_unlock(&mtx);
+
+                    // break;
+                }
+
+                std::cout << "--" << buf << "--";
+
+                queue.push({.buf = buf, .readN = (int)n});
+            }
+            return nullptr;
+        },
+        &cfd);
+
+    pthread_create(
+        &writer, nullptr,
+        [](void* arg) -> void* {
+            int cfd = *(int*)arg;
+            int* cfdPtr = (int*)arg;
+
+            while (1) {
+                pthread_mutex_lock(&mtx);
+
+                if (clientClose) {
+                    cfd = *cfdPtr;
+                    clientClose = false;
+                }
+
+                pthread_mutex_unlock(&mtx);
+
+                Patch patch;
+                if (!queue.pop(patch)) {
+                    std::cout << "队列已关闭，无法继续 pop 数据\n";
+                    break;
+                }
+
+                auto buf = patch.buf;
+                auto readN = patch.readN;
+
+                for (int i = 0; i < readN; ++i) {
+                    buf[i] = toupper(buf[i]);
+                }
+
+                send(cfd, buf, (size_t)readN, 0);
+            }
+
+            // 用来向客户端写入数据
+        },
+        &cfd);
+
+    pthread_join(reader, nullptr);
+    pthread_join(writer, nullptr);
+
+    std::cout << "服务的关闭" << std::endl;
+}
+
 }  // namespace Base
 
 void MScokect() {
-    Base::test07();
+    Base::test08();
+    // Base::test07();
     // Base::test06();
     // Base::test05();
     // Base::test04();
