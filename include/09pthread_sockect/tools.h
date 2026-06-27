@@ -10,7 +10,9 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <sstream>
 #include <thread>
+#include <vector>
 
 template <typename T>
 using s_ptr = std::shared_ptr<T>;
@@ -84,5 +86,23 @@ static int Readn(int fd, char* buf, int n) {
     }
 
     return n;
+}
+
+static std::tuple<std::vector<int>, std::string> splitAndParse(const std::string& input) {
+    auto pos = input.find(':');
+
+    // 解析前半部分 "1,2,3,4"
+    std::string numPart = input.substr(0, pos);
+    std::vector<int> nums;
+    std::stringstream ss(numPart);
+    std::string token;
+    while (std::getline(ss, token, ',')) {
+        nums.push_back(std::stoi(token));
+    }
+
+    // 解析后半部分 "faefaw"
+    std::string strPart = (pos != std::string::npos) ? input.substr(pos + 1) : "";
+
+    return {nums, strPart};
 }
 }  // namespace tools
