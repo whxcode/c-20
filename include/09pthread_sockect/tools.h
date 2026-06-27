@@ -15,6 +15,11 @@
 template <typename T>
 using s_ptr = std::shared_ptr<T>;
 
+class IPServer : public std::enable_shared_from_this<IPServer> {
+public:
+    virtual void closeSession(const int fd) = 0;
+};
+
 namespace tools {
 
 static int MSocket(const int listenNum) {

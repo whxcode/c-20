@@ -14,7 +14,21 @@
 #include "include/09pthread_sockect/tools.h"
 #include "include/common.h"
 
-class PServers {
+class PServers : public IPServer {
+public:
+    void closeSession(const int _fd) override {
+        if (sessions.find(_fd) == sessions.end()) {
+            return;
+        }
+
+        close(_fd);
+        sessions.erase(_fd);
+
+        for (auto& [fd, session] : sessions) {
+            session->sendMessage("欢迎: " + std::to_string(fd) + ":下次光临!\n");
+        }
+    }
+
 public:
     void listen() {
         this->sfd = tools::MSocket(10);
@@ -34,13 +48,13 @@ public:
 private:
     void attach(const int cfd) {
         std::cout << cfd << ": 加入" << std::endl;
-        auto session = std::make_shared<PSession>(sfd, cfd);
+        auto session = std::make_shared<PSession>(sfd, cfd, shared_from_this());
         sessions.insert({cfd, session});
         // 1、通知所有人有人加入了
 
         for (auto& [fd, session] : sessions) {
             if (fd != cfd) {
-                session->sendMessage("欢迎: " + std::to_string(cfd) + ":加入");
+                session->sendMessage("欢迎: " + std::to_string(cfd) + ":加入\n");
             }
         }
 
@@ -53,6 +67,8 @@ private:
                 msg += std::to_string(fd) + ",";
             }
         }
+
+        msg += '\n';
 
         // 发送
         session->sendMessage(msg);
