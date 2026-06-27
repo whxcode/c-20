@@ -6,9 +6,11 @@
 #include "include/07_system_scheduler/system_scheduler.h"
 #include "include/08_pthread/m_pathred.h"
 #include "include/08chat/chat.h"
+#include "include/09pthread_sockect/pthread_sockect.h"
 
 int main(int argc, char* argv[]) {
-    MScokect();
+    PthreadSocketTest();
+    // MScokect();
     // MPthread();
     // RunChat(argc, argv);
     // SystemScheduler();
