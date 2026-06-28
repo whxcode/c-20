@@ -127,6 +127,9 @@ static void test02() {
     std::cout << "客户端关闭" << std::endl;
 }
 
+static void test03() {
+}
+
 int main() {
     test02();
     // test01();

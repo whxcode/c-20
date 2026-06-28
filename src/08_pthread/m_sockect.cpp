@@ -12,6 +12,7 @@
 #include "include/08_pthread/m_pathred.h"
 #include "include/SafeQueue.hpp"
 #include "include/patch.hpp"
+#include "include/wrap/wrap.h"
 /**
  * 初始值: 没有
  * 我的 SEQ: 填写上一次对方给我的 ACK
@@ -484,10 +485,69 @@ static void test08() {
     std::cout << "服务的关闭" << std::endl;
 }
 
+/**
+ * SYN_SEND 状态；客户端？
+ * SYN_RECD 状态；服务端？
+ * TIME_WAIT 主动关闭方
+ * 在数据传输时；状态不会改变
+ *
+ * seq: 对方上一次的 ACK
+ * ACK: 对方上一次的 SEQ+数据大小（注:SYN、FIN站一位）
+ * 端口复用
+ * setsockopt(int fd,SO_SOCKET,SO_BIND)
+ * shutdown 可以实现半关闭, (用户行为；不影响内核行为)
+ * shutdown 不考虑文件的引用计数关系；只要调用是直接彻底关闭
+ * close 考虑文件引用计算；调用一次close只是将引用计数-1
+ * 只有减小到0的时候才会真正关闭。
+ *
+ * */
+static void test09() {
+    auto sfd = Wrap::Socket(AF_INET, SOCK_STREAM, 0);
+    sockaddr_in addr{
+        .sin_family = AF_INET, .sin_port = htons(8081), .sin_addr = {.s_addr = htonl(INADDR_ANY)}
+
+    };
+    // 解决端口复用
+    int opt{1};
+    // setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    Wrap::Bind(sfd, (sockaddr*)&addr, sizeof(addr));
+    Wrap::Listen(sfd, 10);
+
+    auto cfd = Wrap::Accpet(sfd, nullptr, nullptr);
+
+    std::cout << "---:" << cfd << std::endl;
+
+    shutdown(cfd, SHUT_WR);
+
+    char buf[1024]{0};
+    size_t size{1024};
+
+    while (1) {
+        int n = Wrap::Read(cfd, buf, size);
+        if (n == 0) {
+            close(cfd);
+            std::cout << "关闭链接" << cfd << std::endl;
+            break;
+        }
+
+        std::cout << n << "::" << "Recv:" << buf << std::endl;
+
+        if (Wrap::Write(cfd, buf, (size_t)n) < 0) {
+            Wrap::PrintError("Wrap::Write Error:");
+        }
+    }
+
+    sleep(1000);
+}
+
 }  // namespace Base
 
+/*
 void MScokect() {
-    Base::test08();
+    Base::test09();
+    // Base::test08();
     // Base::test07();
     // Base::test06();
     // Base::test05();
@@ -496,3 +556,4 @@ void MScokect() {
     // Base::test02();
     // Base::test01();
 }
+*/

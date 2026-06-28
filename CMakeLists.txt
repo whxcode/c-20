@@ -37,7 +37,11 @@ endif()
 # --------------------
 
 # 5. 生成可执行程序
+find_package(Threads REQUIRED)
+
 add_executable(study_app ${ALL_SOURCES})
+add_executable(asio_demo asio.cpp)
+target_link_libraries(asio_demo PRIVATE Threads::Threads)
 
 # 打印一下找到的文件，方便你调试（编译时会在终端显示）
 message(STATUS "Found sources: ${ALL_SOURCES}")

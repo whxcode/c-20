@@ -10,17 +10,17 @@
 
 namespace Wrap {
 
-void PrintError(const char* desc) {
+static void PrintError(const char* desc) {
     perror(desc);
     exit(EXIT_FAILURE);
 }
 
 // 创建文件描述符
-int Socket(const int domain, const int type, const int protocol) {
+static int Socket(const int domain, const int type, const int protocol) {
     int sockfd = socket(domain, type, protocol);
 
     if (sockfd < 0) {
-        perror("socket error:");
+        PrintError("socket error:");
         exit(EXIT_FAILURE);
     }
 
@@ -28,7 +28,7 @@ int Socket(const int domain, const int type, const int protocol) {
 }
 
 // 读取指定字节数的函数
-int ReadN(int fd, void* buf, size_t count) {
+static int ReadN(int fd, void* buf, size_t count) {
     char* head{(char*)buf};
     int lleft{(int)count};
 
@@ -54,7 +54,7 @@ int ReadN(int fd, void* buf, size_t count) {
     return count;
 }
 
-int Read(int fd, void* buf, size_t bytes) {
+static int Read(int fd, void* buf, size_t bytes) {
     ssize_t n{0};
 again:
     if ((n = read(fd, buf, bytes)) < 0) {
@@ -67,22 +67,36 @@ again:
     return n;
 }
 
-int Write(int fd, const void* ptr, size_t nbytes) {
-    ssize_t n{0};
+static int Write(int fd, const void* ptr, size_t nbytes, int __flags = 0) {
+    int n{0};
+    size_t lleft{nbytes};
+    const char* head{(const char*)ptr};
 
-again:
-    if ((n = write(fd, ptr, nbytes)) < 0) {
-        if (errno == EINTR) {
-            goto again;
+    while (lleft > 0) {
+        if ((n = send(fd, head, (size_t)lleft, __flags)) < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                return nbytes - lleft;
+            }
+
+            return -1;
         }
 
-        return -1;
+        lleft -= (size_t)n;
+        head += n;
     }
 
-    return n;
+    if (lleft > 0) {
+        Wrap::PrintError("Write lleft > 0:");
+    }
+
+    return nbytes - lleft;
 }
 
-int Writen(int fd, const void* vptr, size_t n) {
+static int Writen(int fd, const void* vptr, size_t n) {
     size_t nleft{n};
     ssize_t nwritten{0};
     const char* ptr{(char*)vptr};
@@ -107,7 +121,7 @@ int Writen(int fd, const void* vptr, size_t n) {
     return n;
 }
 
-ssize_t MyRead(int fd, char* ptr) {
+static ssize_t MyRead(int fd, char* ptr) {
     static int readCnt{0};
     static char* readPtr{nullptr};
     static char* readBuf[100]{0};
@@ -136,7 +150,7 @@ ssize_t MyRead(int fd, char* ptr) {
     return 1;
 }
 
-ssize_t ReadLine(int fd, void* vptr, size_t maxLen) {
+static ssize_t ReadLine(int fd, void* vptr, size_t maxLen) {
     ssize_t n{0};
     ssize_t rc{0};
     char c{0};
@@ -162,7 +176,7 @@ ssize_t ReadLine(int fd, void* vptr, size_t maxLen) {
     return n;
 }
 
-int Bind(const int fd, const struct sockaddr* sa, socklen_t salen) {
+static int Bind(const int fd, const struct sockaddr* sa, socklen_t salen) {
     int n{0};
 
 again:
@@ -177,7 +191,7 @@ again:
     return n;
 }
 
-int Accpet(const int fd, struct sockaddr* sa, socklen_t* salenptr) {
+static int Accpet(const int fd, struct sockaddr* sa, socklen_t* salenptr) {
     int n{0};
 again:
     if ((n = accept(fd, sa, salenptr)) < 0) {
@@ -190,7 +204,7 @@ again:
     return n;
 }
 
-int Listen(const int fd, const int num) {
+static int Listen(const int fd, const int num) {
     int n{0};
 
     if ((n = listen(fd, num)) < 0) {
@@ -200,7 +214,7 @@ int Listen(const int fd, const int num) {
     return n;
 }
 
-int Connect(int fd, const struct sockaddr* addr, socklen_t len) {
+static int Connect(int fd, const struct sockaddr* addr, socklen_t len) {
     int n{0};
 
     if ((n = connect(fd, addr, len)) < 0) {
@@ -210,7 +224,7 @@ int Connect(int fd, const struct sockaddr* addr, socklen_t len) {
     return n;
 }
 
-int TcpBind(uint16_t port) {
+static int TcpBind(uint16_t port) {
     sockaddr_in sAddr{
         .sin_family = AF_INET, .sin_port = htons(port), .sin_addr = {.s_addr = htonl(INADDR_ANY)}};
 
