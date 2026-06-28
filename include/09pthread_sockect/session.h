@@ -40,6 +40,7 @@ public:
                     return;
                 }
 
+                std::cout << buf << std::endl;
                 std::string str;
                 str.assign(buf, (size_t)readN);
                 auto [left, right] = tools::splitAndParse(str);
@@ -48,14 +49,6 @@ public:
                     std::unique_lock lg{mtx};
                     message = right;
                     cacheFds = left;
-
-                    for (auto f : cacheFds) {
-                        std::cout << f << ",";
-                    }
-
-                    std::cout << std::endl;
-
-                    std::cout << "m:" << right << std::endl;
 
                     cv.notify_one();
                 }
