@@ -2,7 +2,7 @@
 #include <arpa/inet.h>
 // #include <asm-generic/socket.h>
 #include <netinet/in.h>
-#include <sys/epoll.h>
+// #include <sys/epoll.h>
 #include <sys/poll.h>
 #include <sys/select.h>
 #include <sys/socket.h>
@@ -18,6 +18,7 @@
 
 #include "include/08_pthread/m_pathred.h"
 #include "include/SafeQueue.hpp"
+#include "include/io.hpp"
 #include "include/patch.hpp"
 #include "include/wrap/wrap.h"
 
@@ -754,6 +755,85 @@ static void printBit() {
 }
 
 static void test07() {
+    /*
+      sockaddr_in addr{
+          .sin_family = AF_INET, .sin_port = htons(8081), .sin_addr = {.s_addr =
+      htonl(INADDR_ANY)}}; auto lfd = Wrap::Socket(addr.sin_family, SOCK_STREAM, 0);
+      // 设置端口复用
+      int opt{1};
+      setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+      // 绑定
+      Wrap::Bind(lfd, (sockaddr*)&addr, sizeof(addr));
+      // 监听
+      Wrap::Listen(lfd, 10);
+
+      // 将监听的 fd 加入 epoll
+      epoll_event ev{};
+      ev.events = EPOLLIN;
+      ev.data.fd = lfd;
+
+      epoll_event events[1024]{};
+
+      int epfd = epoll_create(1);  // 参数在 Linux 2.6.8 后被忽略，但要 > 0
+      epoll_ctl(epfd, EPOLL_CTL_ADD, lfd, &ev);
+
+      char buf[1024]{0};
+      size_t size{2};
+
+      size_t triigerCount{0};
+      while (1) {
+          int nready = epoll_wait(epfd, events, size, -1);
+
+          if (nready == -1) {
+              if (errno == EINTR) {
+                  Wrap::PrintError("epoll_wait:");
+              }
+
+              break;
+          }
+
+          printf("第 [%d] 触发\n", ++triigerCount);
+
+          for (size_t i = 0; i < nready; ++i) {
+              int fd = events[i].data.fd;
+
+              // 有新客户端链接
+              if (fd == lfd) {
+                  auto cfd = Wrap::Accpet(lfd, nullptr, nullptr);
+
+                  ev.events = EPOLLIN;
+                  ev.data.fd = cfd;
+
+                  // 注册到内核
+                  epoll_ctl(epfd, EPOLL_CTL_ADD, cfd, &ev);
+
+                  continue;
+              }
+
+              memset(buf, 0, size);
+              auto n = Wrap::Read(fd, buf, size);
+              if (n == 0) {
+                  // 客户端关闭链接;
+                  close(fd);
+                  epoll_ctl(epfd, EPOLL_CTL_DEL, fd, nullptr);
+                  continue;
+              }
+
+              for (size_t i = 0; i < n; ++i) {
+                  buf[i] = toupper(buf[i]);
+              }
+
+              Wrap::Write(fd, buf, (size_t)n);
+
+              // 处理客户端数据
+          }
+
+          printf("------\n");
+      }
+    */
+}
+
+static void test08() {
     sockaddr_in addr{
         .sin_family = AF_INET, .sin_port = htons(8081), .sin_addr = {.s_addr = htonl(INADDR_ANY)}};
     auto lfd = Wrap::Socket(addr.sin_family, SOCK_STREAM, 0);
@@ -766,54 +846,32 @@ static void test07() {
     Wrap::Listen(lfd, 10);
 
     // 将监听的 fd 加入 epoll
-    epoll_event ev{};
-    ev.events = EPOLLIN;
-    ev.data.fd = lfd;
+    TCP tcp;
 
-    epoll_event events[1024]{};
-
-    int epfd = epoll_create(1);  // 参数在 Linux 2.6.8 后被忽略，但要 > 0
-    epoll_ctl(epfd, EPOLL_CTL_ADD, lfd, &ev);
+    tcp.attach(lfd);
 
     char buf[1024]{0};
     size_t size{2};
 
-    size_t triigerCount{0};
     while (1) {
-        int nready = epoll_wait(epfd, events, size, -1);
+        auto epolls = tcp.await();
+        printf("---[%d]\n", epolls.size());
 
-        if (nready == -1) {
-            if (errno == EINTR) {
-                Wrap::PrintError("epoll_wait:");
-            }
-
-            break;
-        }
-
-        printf("第 [%d] 触发\n", ++triigerCount);
-
-        for (size_t i = 0; i < nready; ++i) {
-            int fd = events[i].data.fd;
-
+        for (auto fd : epolls) {
             // 有新客户端链接
             if (fd == lfd) {
+                std::cout << "新客户链接" << std::endl;
+
                 auto cfd = Wrap::Accpet(lfd, nullptr, nullptr);
-
-                ev.events = EPOLLIN;
-                ev.data.fd = cfd;
-
-                // 注册到内核
-                epoll_ctl(epfd, EPOLL_CTL_ADD, cfd, &ev);
-
+                tcp.attach(cfd);
                 continue;
             }
 
             memset(buf, 0, size);
             auto n = Wrap::Read(fd, buf, size);
             if (n == 0) {
-                // 客户端关闭链接;
-                close(fd);
-                epoll_ctl(epfd, EPOLL_CTL_DEL, fd, nullptr);
+                std::cout << "客户端断开链接" << std::endl;
+                tcp.detach(fd);
                 continue;
             }
 
@@ -825,8 +883,6 @@ static void test07() {
 
             // 处理客户端数据
         }
-
-        printf("------\n");
     }
 }
 
@@ -835,12 +891,13 @@ static void test07() {
 //
 
 void MScokect() {
+    MScokect1::test08();
     // MScokect1::printBit();
-    MScokect1::test07();
-    // MScokect1::test06();
-    // MScokect1::test05();
-    // MScokect1::test04();
-    // MScokect1::test03();
-    // MScokect1::test02();
-    //  MScokect1::test01();
+    // MScokect1::test07();
+    //  MScokect1::test06();
+    //  MScokect1::test05();
+    //  MScokect1::test04();
+    //  MScokect1::test03();
+    //  MScokect1::test02();
+    //   MScokect1::test01();
 }
