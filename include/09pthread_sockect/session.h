@@ -30,6 +30,7 @@ public:
         std::thread readThread{[this]() {
             char buf[1024]{0};
             auto size = sizeof(buf);
+
             while (true) {
                 memset(buf, 0, size);
                 auto readN = recv(fd, buf, size, 0);
@@ -40,15 +41,16 @@ public:
                     return;
                 }
 
-                std::cout << buf << std::endl;
                 std::string str;
                 str.assign(buf, (size_t)readN);
-                auto [left, right] = tools::splitAndParse(str);
+                auto [ok, left, right] = tools::splitAndParse(str);
 
                 {
                     std::unique_lock lg{mtx};
                     message = right;
                     cacheFds = left;
+                    this->ok = ok;
+                    transform = true;
 
                     cv.notify_one();
                 }
@@ -62,15 +64,21 @@ public:
                 // 等待消息到来
                 std::unique_lock lg{mtx};
                 cv.wait(lg, [this]() {
-                    return cacheFds.size() != 0;
+                    return transform;
                 });
 
-                message.insert(0, "[" + std::to_string(fd) + "]说:");
+                if (!this->ok) {
+                    message = "请选择好友后再发送消息!\n";
+                    send(fd, message.c_str(), message.size(), 0);
+                } else {
+                    message.insert(0, "[" + std::to_string(fd) + "]说:");
 
-                for (auto f : cacheFds) {
-                    send(f, message.c_str(), message.size(), 0);
+                    for (auto f : cacheFds) {
+                        send(f, message.c_str(), message.size(), 0);
+                    }
                 }
 
+                transform = false;
                 cacheFds.clear();
             }
         }};
@@ -97,5 +105,7 @@ private:
     std::condition_variable cv{};
     std::mutex mtx{};
     std::string message{};  // 好友消息转发。
+    bool ok{};              // 好友消息转发。
     std::vector<int> cacheFds{};
+    bool transform{false};
 };

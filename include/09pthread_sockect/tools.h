@@ -28,6 +28,8 @@ static int MSocket(const int listenNum) {
     // 服务的
 
     auto sfd = socket(AF_INET, SOCK_STREAM, 0);
+    int opt{1};
+    setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
     if (sfd == -1) {
         perror("socket: ");
         return -1;
@@ -88,8 +90,12 @@ static int Readn(int fd, char* buf, int n) {
     return n;
 }
 
-static std::tuple<std::vector<int>, std::string> splitAndParse(const std::string& input) {
-    auto pos = input.find(':');
+static std::tuple<bool, std::vector<int>, std::string> splitAndParse(const std::string& input) {
+    auto pos = input.find(',');
+
+    if (pos == std::string::npos) {
+        return {false, {}, ""};
+    }
 
     // 解析前半部分 "1,2,3,4"
     std::string numPart = input.substr(0, pos);
@@ -103,6 +109,6 @@ static std::tuple<std::vector<int>, std::string> splitAndParse(const std::string
     // 解析后半部分 "faefaw"
     std::string strPart = (pos != std::string::npos) ? input.substr(pos + 1) : "";
 
-    return {nums, strPart};
+    return {true, nums, strPart};
 }
 }  // namespace tools
