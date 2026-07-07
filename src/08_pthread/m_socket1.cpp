@@ -10,6 +10,7 @@
 
 #include <bitset>
 #include <cerrno>
+#include <coroutine>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -17,6 +18,7 @@
 #include <vector>
 
 #include "include/08_pthread/m_pathred.h"
+#include "include/09pthread_sockect/tools.h"
 #include "include/SafeQueue.hpp"
 #include "include/io.hpp"
 #include "include/patch.hpp"
@@ -886,18 +888,600 @@ static void test08() {
     }
 }
 
+/**
+ * 使用epoll模型开发服务器流程
+ * 1、创建文件描述符
+ * 2、设置端口复用。
+ * 3、绑定ip+port
+ * 4、监听
+ *
+ * 5、创建 epoll 数
+ * int epfd = epoll_create(1);
+ *
+ * 5、将文件描述符上树
+ * struct epoll_event ev;
+ * ev.events = EPOLLIN;// 监听可读事件。
+ * epoll_ctl(epfd,EPOLL_CTL_ADD,lfd,&ev);
+ * struct epoll_event events[1024];
+ * wihile(1) {
+ *    nready = epoll_wait(epfd,evnets,1024,-1); // 等待事件反应
+ *
+ *    if(nready < 0) {
+ *      if(errno == EINTR) {
+ *        contiune;
+ *      }
+ *      // 异常情况
+ *      break;
+ *    }
+ *
+ *    for(size_t i =0;i < nready; ++i)  {
+ *      // 分为2中情况；
+ *      1、有客户端请求链接
+ *      2、有客户端发送数据
+ *
+ *      sockfd = events[i].data.fd;
+ *
+ *      if(sockfd == lfd) {
+ *         // 存在客户端链接
+ *         再次上树
+ *
+ *         cfd = accpet(lfd,nullptr,nullptr);
+ *         event.data.fd = cfd;
+ *         epoll_ctrl(epfd,EPOLL_CTL_ADD,cfd,&event);
+ *
+ *
+ *
+ *        contiune;
+ *      }
+ *
+ *      处理客户端发送数据请求。
+ *
+ *
+ *      n = read(sockfd,buf,sizeof(buf));
+ *      if(n == 0) {
+ *          客户端关闭链接
+ *          close(sockfd);
+ *          epoll_ctl(epf,EPOLL_CTL_DEL,sockfd,nullptr);
+ *          contiune;
+ *      }
+ *
+ *      // 处理后续流程
+ *
+ *    }
+ *
+ * }
+ *
+ *
+ *
+ * */
+
+static void test09() {
+    sockaddr_in addr{
+        .sin_family = AF_INET,
+        .sin_port = htons(8081),
+        .sin_addr = {.s_addr = htonl(INADDR_ANY)},
+    };
+
+    auto lfd = Wrap::Socket(addr.sin_family, SOCK_STREAM, 0);
+    int opt{1};
+
+    setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    Wrap::Bind(lfd, (sockaddr*)&addr, sizeof(addr));
+    Wrap::Listen(lfd, 10);
+
+    auto epfd = epoll_create(1);
+
+    if (epfd < 0) {
+        Wrap::PrintError("epoll_create error:");
+    }
+
+    epoll_event ev{};
+    ev.events = EPOLLIN;
+    ev.data.fd = lfd;
+
+    // 注册
+    epoll_ctl(epfd, EPOLL_CTL_ADD, lfd, &ev);
+
+    // 就绪列表
+    epoll_event events[1024]{};
+
+    while (1) {
+        auto nread = epoll_wait(epfd, events, 1024, -1);
+        if (nread < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+
+            Wrap::PrintError("epoll_wait error:");
+        }
+
+        for (size_t i = 0; i < (size_t)nread; ++i) {
+            auto fd = events[i].data.fd;
+
+            if (fd == lfd) {
+                // 新客户端
+
+                auto cfd = Wrap::Accpet(lfd, nullptr, nullptr);
+                if (cfd < 0) {
+                    Wrap::PrintError("accpet error:");
+                }
+
+                ev.events = EPOLLIN;
+                ev.data.fd = cfd;
+
+                epoll_ctl(epfd, EPOLL_CTL_ADD, cfd, &ev);
+                continue;
+            }
+
+            char buf[1024]{0};
+            auto n = Wrap::Read(fd, buf, sizeof(buf));
+            if (n == 0) {
+                // 关闭
+                close(fd);
+                epoll_ctl(epfd, EPOLL_CTL_DEL, fd, nullptr);
+                continue;
+            } else if (n < 0) {
+                if (errno == EINTR) {
+                    continue;
+                }
+
+                Wrap::PrintError("read error:");
+            }
+
+            for (size_t i = 0; i < (size_t)n; ++i) {
+                buf[i] = toupper(buf[i]);
+            }
+
+            if (Wrap::Write(fd, buf, (size_t)n) < 0) {
+                Wrap::PrintError("write error:");
+            }
+        }
+    }
+}
+
+/**
+ *
+ * epoll 进阶
+ *
+ * epoll 的两种工作模式,ET 和 LT 模式
+ * 水平触发:
+ *  只要缓冲区有数据；就一直通知
+ *
+ *  边缘触发:
+ *    缓冲区中有数据就会一直通知；之后有数据
+ *
+ *
+ * */
+
+static void test10() {
+    sockaddr_in addr{
+        .sin_family = AF_INET,
+        .sin_port = htons(8081),
+        .sin_addr = {.s_addr = htonl(INADDR_ANY)},
+    };
+
+    auto lfd = Wrap::Socket(addr.sin_family, SOCK_STREAM, 0);
+    int opt{1};
+
+    setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    Wrap::Bind(lfd, (sockaddr*)&addr, sizeof(addr));
+    Wrap::Listen(lfd, 10);
+
+    auto epfd = epoll_create(1);
+
+    if (epfd < 0) {
+        Wrap::PrintError("epoll_create error:");
+    }
+
+    epoll_event ev{};
+    ev.events = EPOLLIN | EPOLLET;
+    ev.data.fd = lfd;
+
+    // 注册
+    epoll_ctl(epfd, EPOLL_CTL_ADD, lfd, &ev);
+
+    // 就绪列表
+    epoll_event events[1024]{};
+
+    char buf[1024]{0};
+    size_t size{2};
+    size_t count{0};
+
+    while (1) {
+        auto nread = epoll_wait(epfd, events, 1024, -1);
+        printf("第 [%d] 次触发\n", ++count);
+        if (nread < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+
+            Wrap::PrintError("epoll_wait error:");
+        }
+
+        for (size_t i = 0; i < (size_t)nread; ++i) {
+            auto fd = events[i].data.fd;
+
+            if (fd == lfd) {
+                // 新客户端
+
+                auto cfd = accept4(lfd, nullptr, nullptr, SOCK_NONBLOCK);
+                // auto cfd = Wrap::Accpet(lfd, nullptr, nullptr);
+                if (cfd < 0) {
+                    Wrap::PrintError("accpet error:");
+                }
+
+                ev.events = EPOLLIN | EPOLLET;
+                ev.data.fd = cfd;
+
+                epoll_ctl(epfd, EPOLL_CTL_ADD, cfd, &ev);
+                continue;
+            }
+
+            int n{0};
+            int readCount{0};
+            while (1) {
+                n = Wrap::Read(fd, buf + readCount, size);
+                printf("nn->[%d]\n", n);
+                if (n < 0) {
+                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                        // 没有数据了
+                        break;
+                    }
+
+                    Wrap::PrintError("read error:");
+                } else if (n == 0) {
+                    std::cout << "客户端关闭" << std::endl;
+                    // 关闭
+                    close(fd);
+                    epoll_ctl(epfd, EPOLL_CTL_DEL, fd, nullptr);
+                    break;
+                }
+
+                readCount += n;
+            }
+
+            if (readCount == 0) {
+                continue;
+            }
+
+            printf("readCount[%d]\n", readCount);
+            for (size_t i = 0; i < (size_t)readCount; ++i) {
+                buf[i] = toupper(buf[i]);
+            }
+
+            if (Wrap::Write(fd, buf, (size_t)readCount) < 0) {
+                Wrap::PrintError("write error:");
+            }
+        }
+    }
+}
+
+static void test11() {
+    auto fd = tools::tcp(8081);
+    Epoll* epoll = new Epoll();
+
+    epoll->attach(fd, [epoll](const int fd) {
+        auto cfd = Wrap::Accpet(fd, nullptr, nullptr);
+        if (cfd < 0) {
+            Wrap::PrintError("accpet error:");
+        }
+
+        std::cout << "新客户端链接:" << cfd << std::endl;
+
+        epoll->attach(cfd, [epoll](const int fd) {
+            std::cout << "读取数据" << std::endl;
+            char buf[1024]{0};
+            auto n = Wrap::Read(fd, buf, sizeof(buf));
+            if (n == 0) {
+                // 应该关闭
+                epoll->detach(fd);
+                return;
+            } else if (n < 0) {
+                if (errno == EINTR) {
+                    return;
+                }
+
+                Wrap::PrintError("read error:");
+            }
+
+            for (size_t i = 0; i < (size_t)n; ++i) {
+                buf[i] = toupper(buf[i]);
+            }
+
+            if (Wrap::Write(fd, buf, (size_t)n) < 0) {
+                Wrap::PrintError("write error:");
+            }
+        });
+    });
+
+    while (1) {
+        std::cout << "-" << std::endl;
+        epoll->wait();
+        std::cout << "----" << std::endl;
+    }
+
+    delete epoll;
+}
+
+class Connection {
+public:
+    Connection(Epoll* _epoll, int _fd) : epoll(_epoll), fd(_fd) {};
+
+public:
+    void start() {
+        epoll->attach(fd, [this](const int fd) {
+            this->handleRead(fd);
+        });
+    }
+
+private:
+    void handleRead(int fd) {
+        char buf[1024]{};
+        auto n = Wrap::Read(fd, buf, sizeof(buf));
+
+        if (n <= 0) {
+            epoll->detach(fd);
+            return;
+        }
+
+        for (ssize_t i = 0; i < n; ++i) {
+            buf[i] = std::toupper(static_cast<unsigned char>(buf[i]));
+        }
+
+        Wrap::Write(fd, buf, static_cast<size_t>(n));
+    }
+
+private:
+    Epoll* epoll{nullptr};
+    int fd{0};
+};
+
+class Server {
+public:
+    Server() {
+        auto fd = tools::tcp(8081);
+        epoll->attach(fd, [this](const int fd) {
+            this->onAccept(fd);
+        });
+    }
+
+public:
+    void onAccept(int fd) {
+        auto cfd = Wrap::Accpet(fd, nullptr, nullptr);
+        if (cfd < 0) {
+            Wrap::PrintError("accpet error:");
+        }
+
+        std::cout << "新客户端链接:" << cfd << std::endl;
+
+        Connection* conn = new Connection(epoll, cfd);
+        conn->start();
+    }
+    // 析构函数
+    ~Server() {
+        delete epoll;
+    }
+
+public:
+    Epoll* epoll{new Epoll};
+};
+
+static void test12() {
+    Server server;
+
+    while (1) {
+        server.epoll->wait();
+    }
+}
+
+struct Task {
+    struct promise_type {
+        Task get_return_object() {
+            return Task{std::coroutine_handle<promise_type>::from_promise(*this)};
+        }
+
+        std::suspend_always initial_suspend() {
+            return {};
+        }
+
+        std::suspend_always final_suspend() noexcept {
+            return {};
+        }
+
+        void return_void() {
+        }
+
+        void unhandled_exception() {
+            std::terminate();
+        }
+    };
+
+    std::coroutine_handle<promise_type> handle;
+
+    explicit Task(std::coroutine_handle<promise_type> h) : handle(h) {
+    }
+
+    ~Task() {
+        if (handle) {
+            handle.destroy();
+        }
+    }
+
+    void resume() {
+        if (handle && !handle.done()) {
+            handle.resume();
+        }
+    }
+};
+
+Task test() {
+    std::cout << "1\n";
+    co_await std::suspend_always{};
+    std::cout << "2\n";
+    co_await std::suspend_always{};
+    std::cout << "3\n";
+}
+
+static void test13() {
+    Task t = test();
+
+    std::cout << "start\n";
+
+    t.resume();  // 输出 1，然后暂停
+    t.resume();  // 输出 2，然后暂停
+    t.resume();  // 输出 3，然后结束
+}
+
 };  // namespace MScokect1
 //
 //
 
-void MScokect() {
-    MScokect1::test08();
-    // MScokect1::printBit();
-    // MScokect1::test07();
-    //  MScokect1::test06();
-    //  MScokect1::test05();
-    //  MScokect1::test04();
-    //  MScokect1::test03();
-    //  MScokect1::test02();
-    //   MScokect1::test01();
+namespace Co {
+
+struct Task {
+    struct promise_type {
+        Task get_return_object() {
+            return Task{std::coroutine_handle<promise_type>::from_promise(*this)};
+        }
+
+        std::suspend_always initial_suspend() {
+            return {};
+        }
+
+        std::suspend_always final_suspend() noexcept {
+            return {};
+        }
+
+        void return_void() {
+        }
+
+        void unhandled_exception() {
+            std::terminate();
+        }
+    };
+
+    std::coroutine_handle<promise_type> handle{};
+
+    explicit Task(std::coroutine_handle<promise_type> h) : handle(h) {
+    }
+
+    Task(const Task&) = delete;
+    Task& operator=(const Task&) = delete;
+
+    Task(Task&& other) noexcept : handle(other.handle) {
+        other.handle = nullptr;
+    }
+
+    ~Task() {
+        if (handle) {
+            handle.destroy();
+        }
+    }
+
+    void resume() {
+        if (handle && !handle.done()) {
+            handle.resume();
+        }
+    }
+};
+
+struct FetchDataAwaiter {
+    std::string result;
+
+    bool await_ready() {
+        return false;
+    }
+
+    void await_suspend(std::coroutine_handle<> h) {
+        std::thread([this, h] {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+
+            result = "success";
+
+            h.resume();
+        }).detach();
+    }
+
+    std::string await_resume() {
+        return result;
+    }
+};
+
+Task init() {
+    std::cout << "start fetch\n";
+
+    std::string data = co_await FetchDataAwaiter{};
+
+    std::cout << "data: " << data << "\n";
 }
+
+int main() {
+    std::cout << "考试执行" << std::endl;
+    Task task = init();
+
+    // task.resume();
+
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+
+    std::cout << "main end\n";
+}
+/**
+ * 复习:
+ * epoll 基本使用。 多路 IO 复用
+ * 其内部是一颗红黑二叉树
+ *
+ * struct epoll_event {
+ *    int events; // EPOLLIN、EPOLLET、EPLLOUT
+ *    struct union data {
+ *        void *ptr;
+ *        int fd;
+ *        uint32_t u32;
+ *        uint64_t u64;
+ *
+ *    }
+ * };
+ *
+ * int epfd = epll_create(1)
+ * epoll_ctl(epfd,EPOLL_CTL_ADD,fd,&event);
+ * int nready = epoll_wait(epfd,events,1024,-1);
+ *
+ * 调用 epoll_wait() 它可以把可用的描述符写入导 events 中，返回可用个数。
+ * 业务层面可用直接拿到:
+ * for(size_t i = 0;i<nready;++i) {
+ *   // 业务处理
+ *   int fd = events[i].data.fd;
+ *
+ * }
+ *
+ * 位运算
+ * a | b 或；
+ * a & b 与
+ *
+ * a |= b 或等
+ *
+ *
+ *
+ * */
+}  // namespace Co
+// void MScokect() {
+//     char a{0};
+//     a = 1 | 3;
+//
+//     unsigned char b = 0b10000000;
+//     std::cout << "b:" << (uint32_t)b << std::endl;
+//     std::cout << "a:" << (int)a << std::endl;
+//     std::cout << std::bitset<8>(a) << std::endl;
+//     // Co::main();
+//     // MScokect1::test13();
+//     // MScokect1::test12();
+//     // MScokect1::test11();
+//     // MScokect1::test08();
+//     // MScokect1::printBit();
+//     // MScokect1::test07();
+//     //  MScokect1::test06();
+//     //  MScokect1::test05();
+//     //  MScokect1::test04();
+//     //  MScokect1::test03();
+//     //  MScokect1::test02();
+//     //   MScokect1::test01();
+// }

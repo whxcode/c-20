@@ -9,8 +9,8 @@
 #include "include/09pthread_sockect/pthread_sockect.h"
 
 int main(int argc, char* argv[]) {
-    PthreadSocketTest();
-    // MScokect();
+    // PthreadSocketTest();
+    MScokect();
     // MPthread();
     // RunChat(argc, argv);
     // SystemScheduler();

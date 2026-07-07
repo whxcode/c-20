@@ -23,7 +23,7 @@ public:
     }
     void attach(const int fd) {
 #ifdef __linux__
-        epoll ev{
+        epoll_event ev{
             .events = EPOLLIN,
         };
         ev.data.fd = fd;
@@ -42,7 +42,7 @@ public:
         static constexpr int kMaxEvents = 1024;
 #ifdef __linux__
         epoll_event events[1024]{0};
-        int nready = epoll_wait(root, events, 1024, nullptr);
+        int nready = epoll_wait(root, events, 1024, -1);
 
         for (size_t i = 0; i < nready; ++i) {
             int fd = events[i].data.fd;
