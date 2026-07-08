@@ -20,6 +20,7 @@ file(GLOB_RECURSE ALL_SOURCES
 # 这样你在代码里写 #include "01Exmale/01.example.h" 就能直接识别
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(yalantinglibs/include)
+include_directories(/opt/homebrew/include)
 
 # ---------------------------------------------------------
 # 恒兴的专属调试配置：ASan + 禁优化 + GDB挂起支持

@@ -7,10 +7,12 @@
 #include "include/08_pthread/m_pathred.h"
 #include "include/08chat/chat.h"
 #include "include/09pthread_sockect/pthread_sockect.h"
+#include "include/10Asio/asio.h"
 
 int main(int argc, char* argv[]) {
+    TestAsio();
     // PthreadSocketTest();
-    MScokect();
+    // MScokect();
     // MPthread();
     // RunChat(argc, argv);
     // SystemScheduler();

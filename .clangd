@@ -15,7 +15,9 @@ CompileFlags:
     # "-Werror=conversion",
     "-Werror=sign-conversion",
     # 允许的语言标准 (可选，根据你的项目修改)
-    "-std=c++20"
+    "-std=c++20",
+    # asio 头文件路径
+    "-I/opt/homebrew/include"
   ]
 
 Diagnostics:
