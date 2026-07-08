@@ -4,6 +4,14 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <vector>
+
+#ifdef __linux__
+#include <sys/epoll.h>
+#elif __APPLE__
+#include <sys/event.h>
+#endif
+
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
@@ -244,6 +252,66 @@ static int TcpBind(uint16_t port) {
     Listen(sfd, 10);
 
     return sfd;
+}
+
+static int EpollCreate() {
+    int root{-1};
+#ifdef __linux__
+    root = epoll_create(1);
+#elif __APPLE__
+    root = kqueue();
+#endif
+    return root;
+}
+
+static void EpollCtl(int epfd, int fd) {
+#ifdef __linux__
+    epoll_event ev{
+        .events = EPOLLIN,
+    };
+    ev.data.fd = fd;
+    epoll_ctl(epfd, EPOLL_CTL_ADD, fd, &ev);
+
+#elif __APPLE__
+    struct kevent change;
+    EV_SET(&change, fd, EVFILT_READ, EV_ADD, 0, 0, nullptr);
+    kevent(epfd, &change, 1, nullptr, 0, nullptr);
+#endif
+}
+
+static std::vector<int> EpollAwait(int epfd) {
+    std::vector<int> result{};
+
+    static constexpr int kMaxEvents = 1024;
+#ifdef __linux__
+    epoll_event events[1024]{0};
+    int nready = epoll_wait(epfd, events, 1024, -1);
+
+    for (size_t i = 0; i < nready; ++i) {
+        int fd = events[i].data.fd;
+        result.push_back(fd);
+    }
+
+#elif __APPLE__
+    std::array<struct kevent, kMaxEvents> events{};
+    int nready = kevent(epfd, nullptr, 0, events.data(), events.size(), nullptr);
+    for (size_t i = 0; i < nready; i++) {
+        int fd = (int)(intptr_t)events[i].ident;
+        result.push_back(fd);
+    }
+
+#endif
+    return result;
+}
+
+static void EpollDetach(int epfd, const int fd) {
+#ifdef __linux__
+    epoll_ctl(root, EPOLL_CTL_DEL, fd, nullptr);
+#elif __APPLE__
+    struct kevent change;
+    EV_SET(&change, fd, EVFILT_READ, EV_DELETE, 0, 0, nullptr);
+    kevent(epfd, &change, 1, nullptr, 0, nullptr);
+#endif
 }
 
 };  // namespace Wrap

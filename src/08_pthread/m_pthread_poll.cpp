@@ -320,9 +320,55 @@ static void test03() {
     }
 }
 
+static void test04() {
+    auto fd = tools::tcp(8081);
+    Epoll* epoll = new Epoll();
+
+    epoll->attach(fd, [epoll](const int fd) {
+        auto cfd = Wrap::Accpet(fd, nullptr, nullptr);
+        if (cfd < 0) {
+            Wrap::PrintError("accpet error:");
+        }
+
+        std::cout << "新客户端链接:" << cfd << std::endl;
+
+        epoll->attach(cfd, [epoll](const int fd) {
+            std::cout << "读取数据" << std::endl;
+            char buf[1024]{0};
+            auto n = Wrap::Read(fd, buf, sizeof(buf));
+            if (n == 0) {
+                // 应该关闭
+                epoll->detach(fd);
+                return;
+            } else if (n < 0) {
+                if (errno == EINTR) {
+                    return;
+                }
+
+                Wrap::PrintError("read error:");
+            }
+
+            for (size_t i = 0; i < (size_t)n; ++i) {
+                buf[i] = toupper(buf[i]);
+            }
+
+            if (Wrap::Write(fd, buf, (size_t)n) < 0) {
+                Wrap::PrintError("write error:");
+            }
+        });
+    });
+
+    while (1) {
+        epoll->wait();
+    }
+
+    delete epoll;
+}
+
 }  // namespace PthreadPoll
 void MScokect() {
-    PthreadPoll::test03();
+    PthreadPoll::test04();
+    // PthreadPoll::test03();
     // PthreadPoll::main();
     // PthreadPoll::test01();
 }

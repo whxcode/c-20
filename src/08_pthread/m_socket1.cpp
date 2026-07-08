@@ -956,87 +956,89 @@ static void test08() {
  * */
 
 static void test09() {
-    sockaddr_in addr{
-        .sin_family = AF_INET,
-        .sin_port = htons(8081),
-        .sin_addr = {.s_addr = htonl(INADDR_ANY)},
-    };
+    /*
+      sockaddr_in addr{
+          .sin_family = AF_INET,
+          .sin_port = htons(8081),
+          .sin_addr = {.s_addr = htonl(INADDR_ANY)},
+      };
 
-    auto lfd = Wrap::Socket(addr.sin_family, SOCK_STREAM, 0);
-    int opt{1};
+      auto lfd = Wrap::Socket(addr.sin_family, SOCK_STREAM, 0);
+      int opt{1};
 
-    setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-    Wrap::Bind(lfd, (sockaddr*)&addr, sizeof(addr));
-    Wrap::Listen(lfd, 10);
+      setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+      Wrap::Bind(lfd, (sockaddr*)&addr, sizeof(addr));
+      Wrap::Listen(lfd, 10);
 
-    auto epfd = epoll_create(1);
+      auto epfd = epoll_create(1);
 
-    if (epfd < 0) {
-        Wrap::PrintError("epoll_create error:");
-    }
+      if (epfd < 0) {
+          Wrap::PrintError("epoll_create error:");
+      }
 
-    epoll_event ev{};
-    ev.events = EPOLLIN;
-    ev.data.fd = lfd;
+      epoll_event ev{};
+      ev.events = EPOLLIN;
+      ev.data.fd = lfd;
 
-    // 注册
-    epoll_ctl(epfd, EPOLL_CTL_ADD, lfd, &ev);
+      // 注册
+      epoll_ctl(epfd, EPOLL_CTL_ADD, lfd, &ev);
 
-    // 就绪列表
-    epoll_event events[1024]{};
+      // 就绪列表
+      epoll_event events[1024]{};
 
-    while (1) {
-        auto nread = epoll_wait(epfd, events, 1024, -1);
-        if (nread < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
+      while (1) {
+          auto nread = epoll_wait(epfd, events, 1024, -1);
+          if (nread < 0) {
+              if (errno == EINTR) {
+                  continue;
+              }
 
-            Wrap::PrintError("epoll_wait error:");
-        }
+              Wrap::PrintError("epoll_wait error:");
+          }
 
-        for (size_t i = 0; i < (size_t)nread; ++i) {
-            auto fd = events[i].data.fd;
+          for (size_t i = 0; i < (size_t)nread; ++i) {
+              auto fd = events[i].data.fd;
 
-            if (fd == lfd) {
-                // 新客户端
+              if (fd == lfd) {
+                  // 新客户端
 
-                auto cfd = Wrap::Accpet(lfd, nullptr, nullptr);
-                if (cfd < 0) {
-                    Wrap::PrintError("accpet error:");
-                }
+                  auto cfd = Wrap::Accpet(lfd, nullptr, nullptr);
+                  if (cfd < 0) {
+                      Wrap::PrintError("accpet error:");
+                  }
 
-                ev.events = EPOLLIN;
-                ev.data.fd = cfd;
+                  ev.events = EPOLLIN;
+                  ev.data.fd = cfd;
 
-                epoll_ctl(epfd, EPOLL_CTL_ADD, cfd, &ev);
-                continue;
-            }
+                  epoll_ctl(epfd, EPOLL_CTL_ADD, cfd, &ev);
+                  continue;
+              }
 
-            char buf[1024]{0};
-            auto n = Wrap::Read(fd, buf, sizeof(buf));
-            if (n == 0) {
-                // 关闭
-                close(fd);
-                epoll_ctl(epfd, EPOLL_CTL_DEL, fd, nullptr);
-                continue;
-            } else if (n < 0) {
-                if (errno == EINTR) {
-                    continue;
-                }
+              char buf[1024]{0};
+              auto n = Wrap::Read(fd, buf, sizeof(buf));
+              if (n == 0) {
+                  // 关闭
+                  close(fd);
+                  epoll_ctl(epfd, EPOLL_CTL_DEL, fd, nullptr);
+                  continue;
+              } else if (n < 0) {
+                  if (errno == EINTR) {
+                      continue;
+                  }
 
-                Wrap::PrintError("read error:");
-            }
+                  Wrap::PrintError("read error:");
+              }
 
-            for (size_t i = 0; i < (size_t)n; ++i) {
-                buf[i] = toupper(buf[i]);
-            }
+              for (size_t i = 0; i < (size_t)n; ++i) {
+                  buf[i] = toupper(buf[i]);
+              }
 
-            if (Wrap::Write(fd, buf, (size_t)n) < 0) {
-                Wrap::PrintError("write error:");
-            }
-        }
-    }
+              if (Wrap::Write(fd, buf, (size_t)n) < 0) {
+                  Wrap::PrintError("write error:");
+              }
+          }
+      }
+    */
 }
 
 /**
@@ -1054,106 +1056,106 @@ static void test09() {
  * */
 
 static void test10() {
-    sockaddr_in addr{
-        .sin_family = AF_INET,
-        .sin_port = htons(8081),
-        .sin_addr = {.s_addr = htonl(INADDR_ANY)},
-    };
-
-    auto lfd = Wrap::Socket(addr.sin_family, SOCK_STREAM, 0);
-    int opt{1};
-
-    setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-    Wrap::Bind(lfd, (sockaddr*)&addr, sizeof(addr));
-    Wrap::Listen(lfd, 10);
-
-    auto epfd = epoll_create(1);
-
-    if (epfd < 0) {
-        Wrap::PrintError("epoll_create error:");
-    }
-
-    epoll_event ev{};
-    ev.events = EPOLLIN | EPOLLET;
-    ev.data.fd = lfd;
-
-    // 注册
-    epoll_ctl(epfd, EPOLL_CTL_ADD, lfd, &ev);
-
-    // 就绪列表
-    epoll_event events[1024]{};
-
-    char buf[1024]{0};
-    size_t size{2};
-    size_t count{0};
-
-    while (1) {
-        auto nread = epoll_wait(epfd, events, 1024, -1);
-        printf("第 [%d] 次触发\n", ++count);
-        if (nread < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-
-            Wrap::PrintError("epoll_wait error:");
-        }
-
-        for (size_t i = 0; i < (size_t)nread; ++i) {
-            auto fd = events[i].data.fd;
-
-            if (fd == lfd) {
-                // 新客户端
-
-                auto cfd = accept4(lfd, nullptr, nullptr, SOCK_NONBLOCK);
-                // auto cfd = Wrap::Accpet(lfd, nullptr, nullptr);
-                if (cfd < 0) {
-                    Wrap::PrintError("accpet error:");
-                }
-
-                ev.events = EPOLLIN | EPOLLET;
-                ev.data.fd = cfd;
-
-                epoll_ctl(epfd, EPOLL_CTL_ADD, cfd, &ev);
-                continue;
-            }
-
-            int n{0};
-            int readCount{0};
-            while (1) {
-                n = Wrap::Read(fd, buf + readCount, size);
-                printf("nn->[%d]\n", n);
-                if (n < 0) {
-                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                        // 没有数据了
-                        break;
-                    }
-
-                    Wrap::PrintError("read error:");
-                } else if (n == 0) {
-                    std::cout << "客户端关闭" << std::endl;
-                    // 关闭
-                    close(fd);
-                    epoll_ctl(epfd, EPOLL_CTL_DEL, fd, nullptr);
-                    break;
-                }
-
-                readCount += n;
-            }
-
-            if (readCount == 0) {
-                continue;
-            }
-
-            printf("readCount[%d]\n", readCount);
-            for (size_t i = 0; i < (size_t)readCount; ++i) {
-                buf[i] = toupper(buf[i]);
-            }
-
-            if (Wrap::Write(fd, buf, (size_t)readCount) < 0) {
-                Wrap::PrintError("write error:");
-            }
-        }
-    }
+    // sockaddr_in addr{
+    //     .sin_family = AF_INET,
+    //     .sin_port = htons(8081),
+    //     .sin_addr = {.s_addr = htonl(INADDR_ANY)},
+    // };
+    //
+    // auto lfd = Wrap::Socket(addr.sin_family, SOCK_STREAM, 0);
+    // int opt{1};
+    //
+    // setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    // Wrap::Bind(lfd, (sockaddr*)&addr, sizeof(addr));
+    // Wrap::Listen(lfd, 10);
+    //
+    // auto epfd = epoll_create(1);
+    //
+    // if (epfd < 0) {
+    //     Wrap::PrintError("epoll_create error:");
+    // }
+    //
+    // epoll_event ev{};
+    // ev.events = EPOLLIN | EPOLLET;
+    // ev.data.fd = lfd;
+    //
+    // // 注册
+    // epoll_ctl(epfd, EPOLL_CTL_ADD, lfd, &ev);
+    //
+    // // 就绪列表
+    // epoll_event events[1024]{};
+    //
+    // char buf[1024]{0};
+    // size_t size{2};
+    // size_t count{0};
+    //
+    // while (1) {
+    //     auto nread = epoll_wait(epfd, events, 1024, -1);
+    //     printf("第 [%d] 次触发\n", ++count);
+    //     if (nread < 0) {
+    //         if (errno == EINTR) {
+    //             continue;
+    //         }
+    //
+    //         Wrap::PrintError("epoll_wait error:");
+    //     }
+    //
+    //     for (size_t i = 0; i < (size_t)nread; ++i) {
+    //         auto fd = events[i].data.fd;
+    //
+    //         if (fd == lfd) {
+    //             // 新客户端
+    //
+    //             auto cfd = accept4(lfd, nullptr, nullptr, SOCK_NONBLOCK);
+    //             // auto cfd = Wrap::Accpet(lfd, nullptr, nullptr);
+    //             if (cfd < 0) {
+    //                 Wrap::PrintError("accpet error:");
+    //             }
+    //
+    //             ev.events = EPOLLIN | EPOLLET;
+    //             ev.data.fd = cfd;
+    //
+    //             epoll_ctl(epfd, EPOLL_CTL_ADD, cfd, &ev);
+    //             continue;
+    //         }
+    //
+    //         int n{0};
+    //         int readCount{0};
+    //         while (1) {
+    //             n = Wrap::Read(fd, buf + readCount, size);
+    //             printf("nn->[%d]\n", n);
+    //             if (n < 0) {
+    //                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
+    //                     // 没有数据了
+    //                     break;
+    //                 }
+    //
+    //                 Wrap::PrintError("read error:");
+    //             } else if (n == 0) {
+    //                 std::cout << "客户端关闭" << std::endl;
+    //                 // 关闭
+    //                 close(fd);
+    //                 epoll_ctl(epfd, EPOLL_CTL_DEL, fd, nullptr);
+    //                 break;
+    //             }
+    //
+    //             readCount += n;
+    //         }
+    //
+    //         if (readCount == 0) {
+    //             continue;
+    //         }
+    //
+    //         printf("readCount[%d]\n", readCount);
+    //         for (size_t i = 0; i < (size_t)readCount; ++i) {
+    //             buf[i] = toupper(buf[i]);
+    //         }
+    //
+    //         if (Wrap::Write(fd, buf, (size_t)readCount) < 0) {
+    //             Wrap::PrintError("write error:");
+    //         }
+    //     }
+    // }
 }
 
 static void test11() {

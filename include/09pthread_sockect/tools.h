@@ -2,7 +2,6 @@
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include <sys/epoll.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -38,7 +37,7 @@ using EpollEvent = struct {
 class Epoll {
 public:
     Epoll() {
-        epfd = epoll_create(1);
+        epfd = Wrap::EpollCreate();
     }
     // 处理析构函数
     ~Epoll() {
@@ -52,33 +51,25 @@ public:
 
 public:
     void attach(const int fd, EpollHandle&& handle) {
-        epoll_event ev{};
         auto e = new EpollEvent;
-
         e->fd = fd;
         e->handle = std::move(handle);
-        ev.events = EPOLLIN;
-        ev.data.ptr = e;
         events[fd] = e;
 
         // 注册
-        epoll_ctl(epfd, EPOLL_CTL_ADD, fd, &ev);
+        Wrap::EpollCtl(epfd, fd);
     }
 
     void wait() {
-        // 就绪列表
-        epoll_event events[1024]{};
-        auto nread = epoll_wait(epfd, events, 1024, -1);
+        auto nread = Wrap::EpollAwait(epfd);
 
-        for (size_t i = 0; i < (size_t)nread; ++i) {
-            EpollEvent* event = (EpollEvent*)events[i].data.ptr;
-            auto fd = event->fd;
-
-            if (fd == 0) {
+        for (auto fd : nread) {
+            auto e = events.find(fd);
+            if (e == events.end()) {
                 continue;
             }
 
-            event->handle(fd);
+            e->second->handle(fd);
         }
 
         _detach();
@@ -100,7 +91,7 @@ private:
             auto second = it->second;
 
             close(fd);
-            epoll_ctl(epfd, EPOLL_CTL_DEL, fd, nullptr);
+            Wrap::EpollDetach(epfd, fd);
             events.erase(fd);
 
             delete second;
