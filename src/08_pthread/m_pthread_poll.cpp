@@ -333,7 +333,8 @@ static void test04() {
         std::cout << "新客户端链接:" << cfd << std::endl;
 
         epoll->attach(cfd, [epoll](const int fd) {
-            std::cout << "读取数据" << std::endl;
+            // std::cout << "读取数据" << std::endl;
+
             char buf[1024]{0};
             auto n = Wrap::Read(fd, buf, sizeof(buf));
             if (n == 0) {
