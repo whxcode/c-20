@@ -37,6 +37,7 @@ public:
 
                 if (readN == 0) {
                     // 客户端推出
+                    std::unique_lock lg{mtx};
                     pServer.lock()->closeSession(fd);
                     return;
                 }

@@ -21,8 +21,8 @@ public:
             return;
         }
 
-        close(_fd);
         sessions.erase(_fd);
+        close(_fd);
 
         for (auto& [fd, session] : sessions) {
             session->sendMessage("欢迎: " + std::to_string(fd) + ":下次光临!\n");
@@ -47,10 +47,8 @@ public:
 
 private:
     void attach(const int cfd) {
-        std::cout << cfd << ": 加入" << std::endl;
         auto session = std::make_shared<PSession>(sfd, cfd, shared_from_this());
         sessions.insert({cfd, session});
-        // 1、通知所有人有人加入了
 
         for (auto& [fd, session] : sessions) {
             if (fd != cfd) {
@@ -59,7 +57,6 @@ private:
         }
 
         // 给 加入进来的人发送所有在线的人的信息,只发送文件描述分: eg: 1,2,3,4
-
         std::string msg{"当前在线好友:"};
 
         for (auto& [fd, _] : sessions) {
