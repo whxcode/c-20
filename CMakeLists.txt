@@ -39,10 +39,15 @@ endif()
 
 # 5. 生成可执行程序
 find_package(Threads REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBEVENT REQUIRED libevent)
 
 add_executable(study_app ${ALL_SOURCES})
-#add_executable(asio_demo asio.cpp)
-# target_link_libraries(asio_demo PRIVATE Threads::Threads)
+target_link_libraries(study_app PRIVATE
+    Threads::Threads
+    ${LIBEVENT_LIBRARIES}
+)
+target_include_directories(study_app PRIVATE ${LIBEVENT_INCLUDE_DIRS})
 
 # 打印一下找到的文件，方便你调试（编译时会在终端显示）
 message(STATUS "Found sources: ${ALL_SOURCES}")

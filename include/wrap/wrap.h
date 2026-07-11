@@ -306,7 +306,7 @@ static std::vector<int> EpollAwait(int epfd) {
 
 static void EpollDetach(int epfd, const int fd) {
 #ifdef __linux__
-    epoll_ctl(root, EPOLL_CTL_DEL, fd, nullptr);
+    epoll_ctl(epfd, EPOLL_CTL_DEL, fd, nullptr);
 #elif __APPLE__
     struct kevent change;
     EV_SET(&change, fd, EVFILT_READ, EV_DELETE, 0, 0, nullptr);
