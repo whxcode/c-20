@@ -13,7 +13,14 @@ echo "--- 正在初始化 Debug 构建环境 ---"
 
 cd "$BUILD_DIR"
 
-cmake -DCMAKE_BUILD_TYPE=Debug .. && make -j$(nproc)
+# macOS 用 sysctl, Linux 用 nproc
+if [ "$(uname)" = "Darwin" ]; then
+    NPROC=$(sysctl -n hw.ncpu)
+else
+    NPROC=$(nproc 2>/dev/null || echo 4)
+fi
+
+cmake -DCMAKE_BUILD_TYPE=Debug .. && make -j"$NPROC"
 
 if [ $? -ne 0 ]; then
   echo "编译失败！"

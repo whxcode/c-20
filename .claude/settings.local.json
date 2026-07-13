@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(brew list:*)",
+      "Bash(find /opt/homebrew -name \"asio.hpp\" -path \"*/boost/*\" 2>/dev/null | head -5jkk)",
+      "Bash(ls /opt/homebrew/include/boost/ 2>/dev/null | head -10; echo \"---\"; brew info boost 2>/dev/null | head -5)",
+      "Bash(g++ -std=c++20 -I/opt/homebrew/include src/10Asio/asio.cpp -o /tmp/asio_demo && /tmp/asio_demo)",
+      "Bash(g++ -std=c++20 -I. -I/opt/homebrew/include -c src/10Asio/asio.cpp -o /dev/null 2>&1)",
+      "Read(//opt/homebrew/**)",
+      "Read(//usr/local/**)",
+      "Bash(rm -rf build && bash build.sh 2>&1)"
+    ]
+  }
+}
