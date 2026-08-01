@@ -1,28 +1,36 @@
-#include "include/01Exmale/01.example.h"
-#include "include/01Exmale/02.accumulat.h"
-#include "include/03DataShared/datashard.h"
-#include "include/04Sync/sync.h"
-#include "include/06.nowmodel/constrcuor.h"
-#include "include/07_system_scheduler/system_scheduler.h"
-#include "include/08_pthread/m_pathred.h"
-#include "include/08chat/chat.h"
+#include <cstdio>
+#include <format>
+#include <thread>
+
+#include "include/queue/queue.h"
+#include "include/server.h"
+#include "include/session.h"
+
+using Handle = std::function<void()>;
 
 int main(int argc, char* argv[]) {
-    MScokect();
-    // MPthread();
-    // RunChat(argc, argv);
-    // SystemScheduler();
-    // Scheduler();
-    // NowModelMemoryAlign();
-    // TestTake();
-    // CommitTest();
-    // CommitTest();
-    // NowModelCpp();
-    // CommitTest();
-    // Future();
-    // Sync04();
-    // DataShared03();
-    // Accumlat02();
-    // Example01();
+    /*
+      auto workers = new Workers();
+
+      for (size_t i{0}; i < 20; ++i) {
+          workers->post([]() {
+              std::this_thread::sleep_for(std::chrono::seconds(1));
+              std::printf("Handle %d\n", std::this_thread::get_id());
+          });
+      }
+
+      sleep(100);
+      */
+    Server ser;
+
+    // 静态文件
+    ser.useStaticServer("/editor", Server::StaticHandle);
+
+    ser.get("/list", [](sp<Ctx> ctx) -> ResponseData {
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        return {.context = nullptr, .body = "----Hello:" + ctx->request.path};
+    });
+
+    ser.run();
     return 0;
 }

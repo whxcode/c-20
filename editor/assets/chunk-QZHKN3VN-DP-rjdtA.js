@@ -1,0 +1,1 @@
+var _a;import{_ as __name}from"./m3-offline-DBX6u7cH.js";var ImperativeState=(__name(_a=class{constructor(init){this.init=init,this.records=this.init()}reset(){this.records=this.init()}},"ImperativeState"),_a);export{ImperativeState as I};

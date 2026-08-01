@@ -3,3 +3,5 @@ build
 .cache
 out
 *.s
+*.out
+node_modules

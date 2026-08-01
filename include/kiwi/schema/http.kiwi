@@ -1,0 +1,6 @@
+
+message Http {
+    string host = 1;
+    string url = 2;
+    uint contentLength = 3;
+}

@@ -1,0 +1,4 @@
+message Model {
+    uint dataSize = 1;
+    string name = 2;
+}

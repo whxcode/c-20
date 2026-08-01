@@ -1,0 +1,44 @@
+<html lang="zh-cmn">
+
+<head>
+  <style>
+    html,
+    body {
+      height: 100%;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      background-color: white;
+    }
+
+    #plugin-iframe {
+      display: block;
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+  </style>
+  <script>
+    window.addEventListener("message", (event) => {
+      var pluginIframeElement = document.getElementById("plugin-iframe")
+      if (pluginIframeElement && event.source === pluginIframeElement.contentWindow) {
+        if (window.__PLUGIN_ID) {
+          parent.postMessage({ pluginId: window.__PLUGIN_ID, data: event.data, type: window.__PLUGIN_MESSAGE }, '*');
+        }
+        else {
+          parent.postMessage({ type: 'pluginUIMessage', data: event.data }, '*');
+        }
+      }
+    })
+    window.onload = () => {
+      parent.postMessage('sandbox-ready', '*');
+    }
+  </script>
+</head>
+
+<body>
+</body>
+
+</html>

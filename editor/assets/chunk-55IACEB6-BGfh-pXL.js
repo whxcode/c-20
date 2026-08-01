@@ -1,0 +1,1 @@
+import{_ as __name,o as select}from"./m3-offline-DBX6u7cH.js";var getDiagramElement=__name((id,securityLevel)=>{let sandboxElement;"sandbox"===securityLevel&&(sandboxElement=select("#i"+id));return select("sandbox"===securityLevel?sandboxElement.nodes()[0].contentDocument.body:"body").select(`[id="${id}"]`)},"getDiagramElement");export{getDiagramElement as g};

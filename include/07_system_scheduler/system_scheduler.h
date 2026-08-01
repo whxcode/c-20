@@ -1,4 +1,0 @@
-
-#pragma one
-
-void SystemScheduler();

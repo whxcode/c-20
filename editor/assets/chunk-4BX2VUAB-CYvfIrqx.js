@@ -1,0 +1,1 @@
+import{_ as __name}from"./m3-offline-DBX6u7cH.js";function populateCommonDb(ast,db){ast.accDescr&&db.setAccDescription?.(ast.accDescr),ast.accTitle&&db.setAccTitle?.(ast.accTitle),ast.title&&db.setDiagramTitle?.(ast.title)}__name(populateCommonDb,"populateCommonDb");export{populateCommonDb as p};

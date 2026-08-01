@@ -19,7 +19,7 @@ file(GLOB_RECURSE ALL_SOURCES
 # 我们不需要手动写 include/01Exmale，直接让 CMake 找 include 文件夹
 # 这样你在代码里写 #include "01Exmale/01.example.h" 就能直接识别
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-
+include_directories(yalantinglibs/include)
 # ---------------------------------------------------------
 # 恒兴的专属调试配置：ASan + 禁优化 + GDB挂起支持
 # ---------------------------------------------------------
@@ -36,7 +36,25 @@ endif()
 # --------------------
 
 # 5. 生成可执行程序
+find_package(Threads REQUIRED)
+
+# 跨平台查找 libevent（macOS Homebrew、Linux 系统路径均可自动找到）
+find_library(LIBEVENT_LIB event)
+find_path(LIBEVENT_INCLUDE_DIR event.h)
+
+if(NOT LIBEVENT_LIB OR NOT LIBEVENT_INCLUDE_DIR)
+    message(FATAL_ERROR "libevent not found. Install it via: brew install libevent (macOS) / sudo apt install libevent-dev (Linux)")
+endif()
+
+message(STATUS "Found libevent: ${LIBEVENT_LIB}")
+message(STATUS "Found libevent include: ${LIBEVENT_INCLUDE_DIR}")
+
 add_executable(study_app ${ALL_SOURCES})
+target_link_libraries(study_app PRIVATE
+    Threads::Threads
+    ${LIBEVENT_LIB}
+)
+target_include_directories(study_app PRIVATE ${LIBEVENT_INCLUDE_DIR})
 
 # 打印一下找到的文件，方便你调试（编译时会在终端显示）
 message(STATUS "Found sources: ${ALL_SOURCES}")
