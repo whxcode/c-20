@@ -22,6 +22,7 @@ void Server::run() {
 
     while (!cStopped) {
         const int readyCount = net::wait(cEventFd, events.data(), cMaxEvents, -1);
+
         if (readyCount < 0) {
             if (errno == EINTR) {
                 continue;
@@ -37,6 +38,8 @@ void Server::run() {
         }
 
         closePendingSessions();
+
+        std::cout << "本轮处理完毕" << std::endl;
     }
 }
 
@@ -154,6 +157,8 @@ void Server::handleReadable(int fd) {
         return;
     }
 
+    std::cout << "context:" << context->request.path << std::endl;
+
     cContexts[fd] = context;
     dispatchRequest(context);
 }
@@ -182,9 +187,28 @@ void Server::acceptClients() {
     }
 }
 
+Server::ResponseHttpHandle* Server::getResponseHttpHandle(sp<Ctx>& context) {
+    const auto& request = context->request;
+    if (request.method == HttpMethod::cGet) {
+        const auto it = cGetHandlers.find(request.path);
+        if (it != cGetHandlers.end()) {
+            return &it->second;
+        }
+    } else if (request.method == HttpMethod::cPost) {
+        const auto it = cPostHandlers.find(request.path);
+        if (it != cPostHandlers.end()) {
+            return &it->second;
+        }
+    }
+
+    return nullptr;
+}
+
 void Server::enqueueRequest(sp<Ctx> context) {
     const std::string requestPath = context->request.path;
     auto handle = getResponseHttpHandle(context);
+
+    std::cout << "客户端开始处理器请求" << std::endl;
 
     if (handle == nullptr) {
         if (cNotFoundHandler) {
@@ -195,6 +219,7 @@ void Server::enqueueRequest(sp<Ctx> context) {
         context->setStatusCode(HttpStatusCode::cNoFound);
         context->setRaw("404 Not Found");
         context->send();
+        return;
     }
 
     cWorkers.post([this, context, handle] {
@@ -302,22 +327,6 @@ void Server::closePendingSessions() {
         ::close(fd);
     }
     cPendingClose.clear();
-}
-Server::ResponseHttpHandle* Server::getResponseHttpHandle(sp<Ctx>& context) {
-    const auto& request = context->request;
-    if (request.method == HttpMethod::cGet) {
-        const auto it = cGetHandlers.find(request.path);
-        if (it != cGetHandlers.end()) {
-            return &it->second;
-        }
-    } else if (request.method == HttpMethod::cPost) {
-        const auto it = cPostHandlers.find(request.path);
-        if (it != cPostHandlers.end()) {
-            return &it->second;
-        }
-    }
-
-    return nullptr;
 }
 
 void Server::StaticHandle(sp<Ctx>& context) {

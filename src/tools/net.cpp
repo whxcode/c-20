@@ -135,8 +135,10 @@ int wait(int eventFd, ReadyEvent* events, int maxEvents, int timeoutMs) {
         const auto eventIndex = static_cast<size_t>(index);
         events[eventIndex].fd = static_cast<int>(nativeEvents[eventIndex].ident);
         events[eventIndex].events = None;
-        if (nativeEvents[eventIndex].filter == EVFILT_READ) events[eventIndex].events |= Event::Read;
-        if (nativeEvents[eventIndex].filter == EVFILT_WRITE) events[eventIndex].events |= Event::Write;
+        if (nativeEvents[eventIndex].filter == EVFILT_READ)
+            events[eventIndex].events |= Event::Read;
+        if (nativeEvents[eventIndex].filter == EVFILT_WRITE)
+            events[eventIndex].events |= Event::Write;
         if ((nativeEvents[eventIndex].flags & (EV_ERROR | EV_EOF)) != 0U) {
             events[eventIndex].events |= Event::Error;
         }
