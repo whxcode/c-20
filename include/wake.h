@@ -8,10 +8,12 @@ public:
     Wake(const Wake&) = delete;
     Wake& operator=(const Wake&) = delete;
 
-    int fd() const;
+    int readFd() const;
+    int writeFd() const;
     bool notify() const;
     void consume();
 
 private:
-    int cFd{-1};
+    int cReadFd{-1};
+    int cWriteFd{-1};
 };

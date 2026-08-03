@@ -63,13 +63,13 @@ int ctl(int eventFd, Operation operation, int fd, std::uint32_t events) {
     return result;
 #elif defined(__APPLE__)
     if (operation == Operation::Delete) {
-        kevent changes[2]{};
+        struct kevent changes[2]{};
         EV_SET(&changes[0], fd, EVFILT_READ, EV_DELETE, 0, 0, nullptr);
         EV_SET(&changes[1], fd, EVFILT_WRITE, EV_DELETE, 0, 0, nullptr);
         return ::kevent(eventFd, changes, 2, nullptr, 0, nullptr);
     }
 
-    kevent changes[2]{};
+    struct kevent changes[2]{};
     int changeCount = 0;
     const std::uint16_t edgeFlag = (events & Event::EdgeTriggered) ? EV_CLEAR : 0;
 
@@ -116,7 +116,7 @@ int wait(int eventFd, ReadyEvent* events, int maxEvents, int timeoutMs) {
     }
     return readyCount;
 #elif defined(__APPLE__)
-    std::vector<kevent> nativeEvents(static_cast<size_t>(maxEvents));
+    std::vector<struct kevent> nativeEvents(static_cast<size_t>(maxEvents));
     timespec timeout{};
     timespec* timeoutPointer = nullptr;
     if (timeoutMs >= 0) {

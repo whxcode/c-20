@@ -1,9 +1,10 @@
 #include "include/tools/file.h"
 
-#include <cerrno>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+#include <cerrno>
 
 #ifdef __linux__
 #include <sys/sendfile.h>
@@ -29,7 +30,7 @@ int openReadOnly(const std::string& filePath) {
 }
 
 ssize_t size(int fd) {
-    struct stat status {};
+    struct stat status{};
     return ::fstat(fd, &status) == 0 ? static_cast<ssize_t>(status.st_size) : -1;
 }
 
@@ -50,4 +51,8 @@ ssize_t sendFile(int socketFd, int fileFd, off_t* offset, size_t count) {
 #endif
 }
 
+void printError(const std::string& err) {
+    std::perror(err.c_str());
+    exit(-1);
+}
 }  // namespace file

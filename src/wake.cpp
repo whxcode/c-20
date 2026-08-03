@@ -1,35 +1,45 @@
 #include "include/wake.h"
 
+#include <unistd.h>
+
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
 
-#include <sys/eventfd.h>
-#include <unistd.h>
+#include "include/tools/file.h"
+#include "include/tools/net.h"
 
-Wake::Wake() : cFd(::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)) {
-    if (cFd < 0) {
-        std::perror("eventfd");
+Wake::Wake() {
+    int fds[2]{0};
+    if (pipe(fds) < 0) {
+        file::printError("Wake::Wake");
     }
+
+    cReadFd = fds[0];
+    cWriteFd = fds[1];
+
+    net::setNonBlocking(cReadFd);
+    net::setNonBlocking(cWriteFd);
 }
 
 Wake::~Wake() {
-    if (cFd >= 0) {
-        ::close(cFd);
+    if (cReadFd >= 0) {
+        ::close(cReadFd);
+    }
+
+    if (cWriteFd >= 0) {
+        ::close(cWriteFd);
     }
 }
 
-int Wake::fd() const {
-    return cFd;
-}
-
 bool Wake::notify() const {
-    const std::uint64_t one = 1;
+    char value{1};
     for (;;) {
-        const auto written = ::write(cFd, &one, sizeof(one));
-        if (written == sizeof(one)) {
+        const auto written = ::write(cWriteFd, &value, 1);
+        if (written == 1) {
             return true;
         }
+
         if (written < 0 && errno == EINTR) {
             continue;
         }
@@ -42,19 +52,27 @@ bool Wake::notify() const {
 }
 
 void Wake::consume() {
-    std::uint64_t ignored = 0;
+    char value{0};
     for (;;) {
-        const auto readSize = ::read(cFd, &ignored, sizeof(ignored));
-        if (readSize == sizeof(ignored)) {
-            return;
-        }
+        const auto readSize = ::read(cReadFd, &value, 1);
+
         if (readSize < 0 && errno == EINTR) {
             continue;
         }
+
         if (readSize < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             return;
         }
+
         std::perror("eventfd read");
         return;
     }
+}
+
+int Wake::writeFd() const {
+    return cWriteFd;
+}
+
+int Wake::readFd() const {
+    return cReadFd;
 }

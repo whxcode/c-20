@@ -11,17 +11,38 @@ class BinarySchema {
 public:
   bool parse(kiwi::ByteBuffer &bb);
   const kiwi::BinarySchema &underlyingSchema() const { return _schema; }
-  bool skipHttpField(kiwi::ByteBuffer &bb, uint32_t id) const;
   bool skipModelField(kiwi::ByteBuffer &bb, uint32_t id) const;
+  bool skipHttpField(kiwi::ByteBuffer &bb, uint32_t id) const;
 
 private:
   kiwi::BinarySchema _schema;
-  uint32_t _indexHttp = 0;
   uint32_t _indexModel = 0;
+  uint32_t _indexHttp = 0;
 };
 
-class Http;
 class Model;
+class Http;
+
+class Model {
+public:
+  Model() { (void)_flags; }
+
+  uint32_t *dataSize();
+  const uint32_t *dataSize() const;
+  void set_dataSize(const uint32_t &value);
+
+  kiwi::String *name();
+  const kiwi::String *name() const;
+  void set_name(const kiwi::String &value);
+
+  bool encode(kiwi::ByteBuffer &bb);
+  bool decode(kiwi::ByteBuffer &bb, kiwi::MemoryPool &pool, const BinarySchema *schema = nullptr);
+
+private:
+  uint32_t _flags[1] = {};
+  kiwi::String _data_name = {};
+  uint32_t _data_dataSize = {};
+};
 
 class Http {
 public:
@@ -49,43 +70,84 @@ private:
   uint32_t _data_contentLength = {};
 };
 
-class Model {
-public:
-  Model() { (void)_flags; }
-
-  uint32_t *dataSize();
-  const uint32_t *dataSize() const;
-  void set_dataSize(const uint32_t &value);
-
-  kiwi::String *name();
-  const kiwi::String *name() const;
-  void set_name(const kiwi::String &value);
-
-  bool encode(kiwi::ByteBuffer &bb);
-  bool decode(kiwi::ByteBuffer &bb, kiwi::MemoryPool &pool, const BinarySchema *schema = nullptr);
-
-private:
-  uint32_t _flags[1] = {};
-  kiwi::String _data_name = {};
-  uint32_t _data_dataSize = {};
-};
-
 #endif
 #ifdef IMPLEMENT_SCHEMA_H
 
 bool BinarySchema::parse(kiwi::ByteBuffer &bb) {
   if (!_schema.parse(bb)) return false;
-  _schema.findDefinition("Http", _indexHttp);
   _schema.findDefinition("Model", _indexModel);
+  _schema.findDefinition("Http", _indexHttp);
   return true;
+}
+
+bool BinarySchema::skipModelField(kiwi::ByteBuffer &bb, uint32_t id) const {
+  return _schema.skipField(bb, _indexModel, id);
 }
 
 bool BinarySchema::skipHttpField(kiwi::ByteBuffer &bb, uint32_t id) const {
   return _schema.skipField(bb, _indexHttp, id);
 }
 
-bool BinarySchema::skipModelField(kiwi::ByteBuffer &bb, uint32_t id) const {
-  return _schema.skipField(bb, _indexModel, id);
+uint32_t *Model::dataSize() {
+  return _flags[0] & 1 ? &_data_dataSize : nullptr;
+}
+
+const uint32_t *Model::dataSize() const {
+  return _flags[0] & 1 ? &_data_dataSize : nullptr;
+}
+
+void Model::set_dataSize(const uint32_t &value) {
+  _flags[0] |= 1; _data_dataSize = value;
+}
+
+kiwi::String *Model::name() {
+  return _flags[0] & 2 ? &_data_name : nullptr;
+}
+
+const kiwi::String *Model::name() const {
+  return _flags[0] & 2 ? &_data_name : nullptr;
+}
+
+void Model::set_name(const kiwi::String &value) {
+  _flags[0] |= 2; _data_name = value;
+}
+
+bool Model::encode(kiwi::ByteBuffer &_bb) {
+  if (dataSize() != nullptr) {
+    _bb.writeVarUint(1);
+    _bb.writeVarUint(_data_dataSize);
+  }
+  if (name() != nullptr) {
+    _bb.writeVarUint(2);
+    _bb.writeString(_data_name.c_str());
+  }
+  _bb.writeVarUint(0);
+  return true;
+}
+
+bool Model::decode(kiwi::ByteBuffer &_bb, kiwi::MemoryPool &_pool, const BinarySchema *_schema) {
+  while (true) {
+    uint32_t _type;
+    if (!_bb.readVarUint(_type)) return false;
+    switch (_type) {
+      case 0:
+        return true;
+      case 1: {
+        if (!_bb.readVarUint(_data_dataSize)) return false;
+        set_dataSize(_data_dataSize);
+        break;
+      }
+      case 2: {
+        if (!_bb.readString(_data_name, _pool)) return false;
+        set_name(_data_name);
+        break;
+      }
+      default: {
+        if (!_schema || !_schema->skipModelField(_bb, _type)) return false;
+        break;
+      }
+    }
+  }
 }
 
 kiwi::String *Http::host() {
@@ -165,68 +227,6 @@ bool Http::decode(kiwi::ByteBuffer &_bb, kiwi::MemoryPool &_pool, const BinarySc
       }
       default: {
         if (!_schema || !_schema->skipHttpField(_bb, _type)) return false;
-        break;
-      }
-    }
-  }
-}
-
-uint32_t *Model::dataSize() {
-  return _flags[0] & 1 ? &_data_dataSize : nullptr;
-}
-
-const uint32_t *Model::dataSize() const {
-  return _flags[0] & 1 ? &_data_dataSize : nullptr;
-}
-
-void Model::set_dataSize(const uint32_t &value) {
-  _flags[0] |= 1; _data_dataSize = value;
-}
-
-kiwi::String *Model::name() {
-  return _flags[0] & 2 ? &_data_name : nullptr;
-}
-
-const kiwi::String *Model::name() const {
-  return _flags[0] & 2 ? &_data_name : nullptr;
-}
-
-void Model::set_name(const kiwi::String &value) {
-  _flags[0] |= 2; _data_name = value;
-}
-
-bool Model::encode(kiwi::ByteBuffer &_bb) {
-  if (dataSize() != nullptr) {
-    _bb.writeVarUint(1);
-    _bb.writeVarUint(_data_dataSize);
-  }
-  if (name() != nullptr) {
-    _bb.writeVarUint(2);
-    _bb.writeString(_data_name.c_str());
-  }
-  _bb.writeVarUint(0);
-  return true;
-}
-
-bool Model::decode(kiwi::ByteBuffer &_bb, kiwi::MemoryPool &_pool, const BinarySchema *_schema) {
-  while (true) {
-    uint32_t _type;
-    if (!_bb.readVarUint(_type)) return false;
-    switch (_type) {
-      case 0:
-        return true;
-      case 1: {
-        if (!_bb.readVarUint(_data_dataSize)) return false;
-        set_dataSize(_data_dataSize);
-        break;
-      }
-      case 2: {
-        if (!_bb.readString(_data_name, _pool)) return false;
-        set_name(_data_name);
-        break;
-      }
-      default: {
-        if (!_schema || !_schema->skipModelField(_bb, _type)) return false;
         break;
       }
     }

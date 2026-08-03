@@ -22,6 +22,7 @@ void Server::run() {
 
     while (!cStopped) {
         const int readyCount = net::wait(cEventFd, events.data(), cMaxEvents, -1);
+        std::cout << "readyCount:" << readyCount << std::endl;
 
         if (readyCount < 0) {
             if (errno == EINTR) {
@@ -101,12 +102,13 @@ void Server::initializeEventLoop() {
     cListenFd = tcp::createListener(8081, cMaxEvents);
     net::setNonBlocking(cListenFd);
 
-    net::ctl(cEventFd, net::Operation::Add, cWake.fd(), net::Read | net::EdgeTriggered);
+    net::ctl(cEventFd, net::Operation::Add, cWake.readFd(), net::Read | net::EdgeTriggered);
+    // net::ctl(cEventFd, net::Operation::Add, cWake.writeFd(), net::Write | net::EdgeTriggered);
     net::ctl(cEventFd, net::Operation::Add, cListenFd, net::Read | net::EdgeTriggered);
 }
 
 void Server::dispatchEvent(const net::ReadyEvent& event) {
-    if (event.fd == cWake.fd()) {
+    if (event.fd == cWake.readFd()) {
         handleWakeup();
         return;
     }
