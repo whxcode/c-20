@@ -1,10 +1,10 @@
 #include "include/ctx.h"
 
-#include <cerrno>
-#include <iostream>
-
 #include <sys/socket.h>
 #include <unistd.h>
+
+#include <cerrno>
+#include <iostream>
 
 #include "include/tools/file.h"
 #include "include/tools/net.h"
@@ -17,12 +17,16 @@ double TimeLine::elapsedSeconds() const {
     return std::chrono::duration<double>(elapsed).count();
 }
 
-sp<Ctx> Ctx::Make(int clientFd, int eventFd, HttpProtocol&& protocol, TimeLine::TimePoint startedAt) {
+sp<Ctx> Ctx::Make(int clientFd, int eventFd, HttpProtocol&& protocol,
+                  TimeLine::TimePoint startedAt) {
     return std::make_shared<Ctx>(clientFd, eventFd, std::move(protocol), startedAt);
 }
 
 Ctx::Ctx(int clientFd, int eventFd, HttpProtocol&& protocol, TimeLine::TimePoint startedAt)
-    : request(std::move(protocol.request)), cClientFd(clientFd), cEventFd(eventFd), cTimeline(startedAt) {
+    : request(std::move(protocol.request)),
+      cClientFd(clientFd),
+      cEventFd(eventFd),
+      cTimeline(startedAt) {
     cResponseHeaders["Content-Type"] = "text/plain";
     cResponseHeaders["Connection"] = "close";
 }
