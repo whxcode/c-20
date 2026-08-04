@@ -27,7 +27,7 @@ Ctx::Ctx(int clientFd, int eventFd, HttpProtocol&& protocol, TimeLine::TimePoint
       cClientFd(clientFd),
       cEventFd(eventFd),
       cTimeline(startedAt) {
-    cResponseHeaders["Content-Type"] = "text/plain";
+    cResponseHeaders["Content-Type"] = "text/plain; charset=utf-8";
     cResponseHeaders["Connection"] = "close";
 }
 
@@ -67,6 +67,18 @@ bool Ctx::isCancelled() const {
 
 void Ctx::cancel() {
     cCancelled.store(true);
+}
+void Ctx::setResponse(Response&& response) {
+    cStatusCode = response.cStatus;
+    for (auto& [key, value] : response.cHeaders.headers) {
+        cResponseHeaders[key] = std::move(value);
+    }
+
+    if (const auto& raw = std::get_if<RawBody>(&response.cBody)) {
+        setRaw(std::move(raw->cData));
+    } else {
+        setFile(std::move(std::get<FileBody>(response.cBody).cFile));
+    }
 }
 
 void Ctx::setErrorHandle(ErrorHandle handle) {

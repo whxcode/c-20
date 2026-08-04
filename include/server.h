@@ -6,9 +6,12 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <variant>
 
+#include "include/consts/http_code.h"
 #include "include/ctx.h"
 #include "include/handle.h"
+#include "include/protocol/http.h"
 #include "include/queue/queue.h"
 #include "include/readerbuffer.h"
 #include "include/tools/net.h"
@@ -22,15 +25,15 @@ struct RequestReadState {
     TimeLine::TimePoint cStartedAt{TimeLine::Clock::now()};
 };
 
-struct ResponseData {
-    sp<Ctx> context{};
-    std::string body{};
+struct ITask {
+    sp<Ctx> cCtx{};
+    Response cResponse{};
 };
 
 class Server : public IHandle, ISessionManager {
 public:
     using HttpHandle = std::function<void(sp<Ctx>& context)>;
-    using ResponseHttpHandle = std::function<ResponseData(sp<Ctx> context)>;
+    using ResponseHttpHandle = std::function<Response(const HttpRequest& request)>;
     using HttpPath = std::string;
 
     ~Server();
@@ -79,7 +82,7 @@ private:
     HttpHandle cStaticHandler{};
 
     std::mutex cCompletionMutex{};
-    std::queue<ResponseData> cCompletions{};
+    std::queue<ITask> cCompletions{};
 
     Wake cWake{};
     Workers cWorkers{};

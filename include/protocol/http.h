@@ -4,9 +4,18 @@
 #include <unordered_map>
 #include <vector>
 
+#include "include/consts/http_code.h"
 #include "include/consts/http_method.h"
 #include "include/kiwi/include/schema.h"
 #include "include/protocol/model.h"
+
+struct RawBody {
+    std::string cData{};
+};
+
+struct FileBody {
+    std::string cFile{};
+};
 
 // 客户端和服务器的通行协议
 
@@ -77,4 +86,29 @@ public:
 
 public:
     HttpRequest request{};
+};
+
+struct Response {
+    static Response MakeRaw(std::string raw) {
+        Response response;
+        response.cStatus = HttpStatusCode::cOk;
+        response.cHeaders["Content-Type"] = "text/plain; charset=utf-8";
+        response.cBody = RawBody{std::move(raw)};
+
+        return response;
+    };
+
+    static Response MakeFile(std::string filePath) {
+        Response response;
+
+        response.cStatus = HttpStatusCode::cOk;
+        response.cHeaders["Content-Type"] = "application/octet-stream";
+        response.cBody = FileBody{std::move(filePath)};
+
+        return response;
+    };
+
+    HttpStatusCode cStatus{HttpStatusCode::cOk};
+    Headers cHeaders{};
+    std::variant<RawBody, FileBody> cBody;
 };

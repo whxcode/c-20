@@ -1,12 +1,12 @@
 #pragma once
 
+#include <sys/types.h>
+
 #include <atomic>
 #include <chrono>
 #include <functional>
 #include <memory>
 #include <string>
-
-#include <sys/types.h>
 
 #include "include/consts/http_code.h"
 #include "include/protocol/http.h"
@@ -55,6 +55,9 @@ public:
 
     bool isCancelled() const;
     void cancel();
+
+public:
+    void setResponse(Response&& response);
 
 private:
     enum class BodyType {

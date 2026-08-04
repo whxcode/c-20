@@ -22,7 +22,6 @@ void Server::run() {
 
     while (!cStopped) {
         const int readyCount = net::wait(cEventFd, events.data(), cMaxEvents, -1);
-        std::cout << "readyCount:" << readyCount << std::endl;
 
         if (readyCount < 0) {
             if (errno == EINTR) {
@@ -34,13 +33,11 @@ void Server::run() {
             break;
         }
 
-        for (int index = 0; index < readyCount; ++index) {
+        for (size_t index = 0; index < readyCount; ++index) {
             dispatchEvent(events[index]);
         }
 
         closePendingSessions();
-
-        std::cout << "本轮处理完毕" << std::endl;
     }
 }
 
@@ -129,7 +126,7 @@ void Server::dispatchEvent(const net::ReadyEvent& event) {
 void Server::handleWakeup() {
     cWake.consume();
 
-    std::queue<ResponseData> readyResponses;
+    std::queue<ITask> readyResponses;
     {
         std::lock_guard lock(cCompletionMutex);
         readyResponses.swap(cCompletions);
@@ -139,12 +136,12 @@ void Server::handleWakeup() {
         auto completion = std::move(readyResponses.front());
         readyResponses.pop();
 
-        if (completion.context->isCancelled()) {
+        if (completion.cCtx->isCancelled()) {
             continue;
         }
 
-        completion.context->setRaw(completion.body);
-        completion.context->send();
+        completion.cCtx->setResponse(std::move(completion.cResponse));
+        completion.cCtx->send();
     }
 }
 
@@ -225,13 +222,13 @@ void Server::enqueueRequest(sp<Ctx> context) {
     }
 
     cWorkers.post([this, context, handle] {
-        auto rest = (*handle)(context);
+        auto rest = (*handle)(context->request);
 
         if (context->isCancelled()) {
             return;
         }
 
-        ResponseData completion{context, rest.body};
+        ITask completion{context, std::move(rest)};
         {
             std::lock_guard lock(cCompletionMutex);
             cCompletions.push(std::move(completion));
@@ -340,6 +337,6 @@ void Server::StaticHandle(sp<Ctx>& context) {
     }
 
     const auto filePath = (stdfs::current_path() / ".." / relativePath).lexically_normal();
-    context->setFile(filePath);
+    context->setResponse(Response::MakeFile(filePath));
     context->send();
 }

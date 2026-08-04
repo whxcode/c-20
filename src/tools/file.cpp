@@ -22,7 +22,7 @@ std::string contentType(const std::string& filePath) {
     if (filePath.ends_with(".js")) return "application/javascript";
     if (filePath.ends_with(".css")) return "text/css";
     if (filePath.ends_with(".pdf")) return "application/pdf";
-    return "text/plain";
+    return "application/octet-stream";
 }
 
 int openReadOnly(const std::string& filePath) {

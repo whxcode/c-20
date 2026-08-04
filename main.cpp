@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <format>
+#include <random>
 #include <thread>
 
 #include "include/queue/queue.h"
@@ -25,15 +26,38 @@ int main(int argc, char* argv[]) {
     // 静态文件
     ser.useStaticServer("/editor", Server::StaticHandle);
 
-    ser.get("/list", [](sp<Ctx> ctx) -> ResponseData {
-        std::this_thread::sleep_for(std::chrono::seconds(10));
-        return {.context = nullptr, .body = "----Hello:" + ctx->request.path};
+    ser.get("/list", [](const HttpRequest&) {
+        static constexpr std::array<std::string_view, 5> names{
+            "Alice", "Bob", "Chen", "Diana", "Eric",
+        };
+
+        std::mt19937 generator{std::random_device{}()};
+        std::uniform_int_distribution<int> age(18, 65);
+
+        std::string json = "[";
+
+        for (size_t index = 0; index < names.size(); ++index) {
+            if (index != 0) {
+                json += ",";
+            }
+
+            json += std::format(R"({{"name":"{}","age":{}}})", names[index], age(generator));
+        }
+
+        json += "]";
+
+        Response response;
+        response.cHeaders["Content-Type"] = "application/json; charset=utf-8";
+        response.cBody = RawBody{std::move(json)};
+        return response;
     });
 
-    ser.get("/get", [](sp<Ctx> ctx) -> ResponseData {
+    /*
+    ser.get("/get", [](sp<Ctx> ctx) -> ITask {
         std::this_thread::sleep_for(std::chrono::seconds(10));
-        return {.context = nullptr, .body = "----Hello:" + ctx->request.path};
+        return {.cTx = nullptr, .body = "----Hello:" + ctx->request.path};
     });
+  */
 
     ser.run();
     return 0;
