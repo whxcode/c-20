@@ -5,6 +5,7 @@
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
+#include <iostream>
 
 #include "include/tools/file.h"
 #include "include/tools/net.h"
@@ -46,7 +47,7 @@ bool Wake::notify() const {
         if (written < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             return true;
         }
-        std::perror("eventfd write");
+        file::printError("Wake::notify error:");
         return false;
     }
 }
@@ -56,16 +57,17 @@ void Wake::consume() {
     for (;;) {
         const auto readSize = ::read(cReadFd, &value, 1);
 
-        if (readSize < 0 && errno == EINTR) {
-            continue;
-        }
+        if (readSize < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
 
-        if (readSize < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-            return;
-        }
+            if ((errno == EAGAIN || errno == EWOULDBLOCK)) {
+                return;
+            }
 
-        std::perror("eventfd read");
-        return;
+            file::printError("Wake::consume error:");
+        }
     }
 }
 

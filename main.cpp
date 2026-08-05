@@ -47,7 +47,7 @@ int main(int argc, char* argv[]) {
         json += "]";
 
         Response response;
-        response.cHeaders["Content-Type"] = "application/json; charset=utf-8";
+        response.cHeaders["Content-Type"] = "text/plain; charset=utf-8";
         response.cBody = RawBody{std::move(json)};
         return response;
     });

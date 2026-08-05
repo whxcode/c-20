@@ -52,7 +52,9 @@ ssize_t sendFile(int socketFd, int fileFd, off_t* offset, size_t count) {
 }
 
 void printError(const std::string& err) {
-    std::perror(err.c_str());
+    auto t = err + "{" + std::to_string(errno) + "}";
+    std::perror(t.c_str());
+
     exit(-1);
 }
 }  // namespace file
