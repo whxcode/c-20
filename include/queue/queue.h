@@ -35,6 +35,27 @@ public:
         cProducer.notify_one();
     }
 
+    bool tryPush(T&& item) {
+        {
+            std::unique_lock lock{cMtx, std::try_to_lock};
+            if (!lock.owns_lock()) {
+                return false;
+            }
+
+            if (cClose || cQueue.size() >= cCap) {
+                return false;
+            }
+
+            cQueue.push(std::move(item));
+
+            lock.unlock();
+        }
+
+        cProducer.notify_one();
+
+        return true;
+    }
+
     void pop(std::optional<T>& item) {
         std::unique_lock lg(cMtx);
 
@@ -114,8 +135,12 @@ public:
     }
 
 public:
-    void post(Handle&& handle) {
+    void push(Handle&& handle) {
         cQueue->push(std::move(handle));
+    }
+
+    bool tryPush(Handle&& handle) {
+        return cQueue->tryPush(std::move(handle));
     }
 
     void close() {

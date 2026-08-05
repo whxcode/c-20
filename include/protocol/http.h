@@ -108,6 +108,12 @@ struct Response {
         return response;
     };
 
+    static Response MakeServiceUnavailable() {
+        auto response = MakeRaw("Server is busy");
+        response.cStatus = HttpStatusCode::cServiceUnavailable;
+        return response;
+    };
+
     HttpStatusCode cStatus{HttpStatusCode::cOk};
     Headers cHeaders{};
     std::variant<RawBody, FileBody> cBody;

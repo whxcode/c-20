@@ -11,10 +11,10 @@
 
 #include "include/consts/http_code.h"
 #include "include/ctx.h"
-#include "include/handle.h"
 #include "include/protocol/http.h"
 #include "include/queue/queue.h"
 #include "include/readerbuffer.h"
+#include "include/router.h"
 #include "include/tools/file.h"
 #include "include/tools/net.h"
 #include "include/wake.h"
@@ -32,18 +32,10 @@ struct ITask {
     Response cResponse{};
 };
 
-using CallBack = std::function<void(Response&& response)>;
-
-class IDispatch {
-public:
-    virtual void enqueueRequest(sp<Ctx> context, const CallBack& callback) = 0;
-    virtual void dispatchRequest(sp<Ctx>& context, const CallBack& callback) = 0;
-};
-
 // 接受 fd,并监听
 class EpWorker {
 public:
-    EpWorker(IDispatch* dispatch) : cDispatch(dispatch) {
+    EpWorker(Router& router, Workers& workers) : cRouter(router), cWorkers(workers) {
         cEpfd = net::create();
 
         net::ctl(cEpfd, net::Operation::Add, cWake.readFd(), net::Read | net::EdgeTriggered);
@@ -142,15 +134,32 @@ public:
         }
 
         cContexts[fd] = context;
-        cDispatch->dispatchRequest(context, [this, context](Response&& response) {
-            ITask completion{context, std::move(response)};
-            {
-                std::lock_guard lock(cCompletionMutex);
-                cCompletions.push(std::move(completion));
+
+        const auto* handler = &cRouter.resolve(context->request);
+        const bool accepted = cWorkers.tryPush([this, context, handler] {
+            Response response = (*handler)(context->request);
+
+            if (context->isCancelled()) {
+                return;
             }
 
-            cWake.notify();
+            postCompletion(context, std::move(response));
         });
+
+        if (!accepted) {
+            context->setResponse(Response::MakeServiceUnavailable());
+            context->send();
+        }
+    }
+
+    void postCompletion(sp<Ctx> context, Response&& response) {
+        ITask completion{std::move(context), std::move(response)};
+        {
+            std::lock_guard lock(cCompletionMutex);
+            cCompletions.push(std::move(completion));
+        }
+
+        cWake.notify();
     }
 
     void detach(int fd) {
@@ -251,5 +260,6 @@ private:
     std::set<int> cPendingClose{};
     std::unordered_map<int, sp<RequestReadState>> cReadStates{};
     std::unordered_map<int, sp<Ctx>> cContexts{};
-    IDispatch* cDispatch{nullptr};
+    Router& cRouter;
+    Workers& cWorkers;
 };

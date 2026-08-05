@@ -18,10 +18,8 @@ Server::~Server() {
 }
 
 void Server::run() {
-    // cEpWorker = std::make_shared<EpWorker>(this);
-
     for (size_t i = 0; i < cEpWorkerCount; ++i) {
-        cEpWorker.push_back(std::make_shared<EpWorker>(this));
+        cEpWorker.push_back(std::make_shared<EpWorker>(cRouter, cWorkers));
     }
 
     initializeEventLoop();
@@ -65,9 +63,9 @@ void Server::acceptClients() {
 
             break;
         }
-
         cEpWorker[cEpWorkerIndex++ % cEpWorkerCount]->listen(clientFd);
     }
+    //
 }
 
 void Server::stop() {
@@ -89,20 +87,19 @@ void Server::stop() {
 }
 
 void Server::get(const HttpPath& path, const ResponseHttpHandle& handle) {
-    cGetHandlers[path] = handle;
+    cRouter.get(path, handle);
 }
 
 void Server::post(const HttpPath& path, const ResponseHttpHandle& handle) {
-    cPostHandlers[path] = handle;
+    cRouter.post(path, handle);
 }
 
-void Server::useNotFound(const HttpPath&, const HttpHandle& handle) {
-    cNotFoundHandler = handle;
+void Server::useNotFound(const HttpPath&, const ResponseHttpHandle& handle) {
+    cRouter.setNotFound(handle);
 }
 
-void Server::useStaticServer(const HttpPath& path, const HttpHandle& handle) {
-    cStaticPath = path;
-    cStaticHandler = handle;
+void Server::useStaticServer(const HttpPath& path, const ResponseHttpHandle& handle) {
+    cRouter.setStatic(path, handle);
 }
 
 void Server::initializeEventLoop() {
@@ -115,72 +112,14 @@ void Server::initializeEventLoop() {
     net::ctl(cEventFd, net::Operation::Add, cListenFd, net::Read | net::EdgeTriggered);
 }
 
-Server::ResponseHttpHandle* Server::getResponseHttpHandle(sp<Ctx>& context) {
-    const auto& request = context->request;
-    if (request.method == HttpMethod::cGet) {
-        const auto it = cGetHandlers.find(request.path);
-        if (it != cGetHandlers.end()) {
-            return &it->second;
-        }
-    } else if (request.method == HttpMethod::cPost) {
-        const auto it = cPostHandlers.find(request.path);
-        if (it != cPostHandlers.end()) {
-            return &it->second;
-        }
-    }
-
-    return nullptr;
-}
-
-void Server::enqueueRequest(sp<Ctx> context, const CallBack& callback) {
-    const std::string requestPath = context->request.path;
-    auto handle = getResponseHttpHandle(context);
-
-    if (handle == nullptr) {
-        if (cNotFoundHandler) {
-            cNotFoundHandler(context);
-            return;
-        }
-
-        context->setStatusCode(HttpStatusCode::cNoFound);
-        context->setRaw("404 Not Found");
-        context->send();
-        return;
-    }
-
-    cWorkers.post([this, context, handle, callback] {
-        auto rest = (*handle)(context->request);
-
-        if (context->isCancelled()) {
-            return;
-        }
-
-        callback(std::move(rest));
-    });
-}
-
-void Server::dispatchRequest(sp<Ctx>& context, const CallBack& callback) {
-    const auto& request = context->request;
-
-    if (request.method == HttpMethod::cGet) {
-        if (request.path.starts_with(cStaticPath) && cStaticHandler) {
-            cStaticHandler(context);
-            return;
-        }
-    }
-
-    enqueueRequest(context, callback);
-}
-
-void Server::StaticHandle(sp<Ctx>& context) {
+Response Server::StaticHandle(const HttpRequest& request) {
     namespace stdfs = std::filesystem;
 
-    std::string relativePath = context->request.path;
+    std::string relativePath = request.path;
     if (!relativePath.empty() && relativePath.front() == '/') {
         relativePath.erase(0, 1);
     }
 
     const auto filePath = (stdfs::current_path() / ".." / relativePath).lexically_normal();
-    context->setResponse(Response::MakeFile(filePath));
-    context->send();
+    return Response::MakeFile(filePath.string());
 }
