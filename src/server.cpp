@@ -18,7 +18,11 @@ Server::~Server() {
 }
 
 void Server::run() {
-    cEpWorker = std::make_shared<EpWorker>(this);
+    // cEpWorker = std::make_shared<EpWorker>(this);
+
+    for (size_t i = 0; i < cEpWorkerCount; ++i) {
+        cEpWorker.push_back(std::make_shared<EpWorker>(this));
+    }
 
     initializeEventLoop();
 
@@ -62,7 +66,7 @@ void Server::acceptClients() {
             break;
         }
 
-        cEpWorker->listen(clientFd);
+        cEpWorker[cEpWorkerIndex++ % cEpWorkerCount]->listen(clientFd);
     }
 }
 

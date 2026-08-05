@@ -49,5 +49,7 @@ private:
     HttpHandle cStaticHandler{};
 
     Workers cWorkers{};
-    sp<EpWorker> cEpWorker{nullptr};
+    std::vector<sp<EpWorker>> cEpWorker{};
+    size_t cEpWorkerCount{10};
+    size_t cEpWorkerIndex{0};
 };

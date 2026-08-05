@@ -67,6 +67,7 @@ public:
 
         while (!cStopped) {
             const int readyCount = net::wait(cEpfd, events.data(), cMaxEvents, -1);
+            std::cout << "pid:" << std::this_thread::get_id() << std::endl;
 
             if (readyCount < 0) {
                 if (errno == EINTR) {
