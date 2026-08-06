@@ -19,7 +19,9 @@ Server::~Server() {
 
 void Server::run() {
     for (size_t i = 0; i < cEpWorkerCount; ++i) {
-        cEpWorker.push_back(std::make_shared<EpWorker>(cRouter, cWorkers));
+        auto w = std::make_shared<EpWorker>(cRouter, cWorkers);
+
+        cEpWorker.push_back(std::move(w));
     }
 
     initializeEventLoop();
@@ -51,6 +53,11 @@ void Server::run() {
 }
 
 void Server::acceptClients() {
+    if (cEpWorker.empty()) {
+        std::cout << "找不到对应的 EpWorker" << std::endl;
+        return;
+    }
+
     while (true) {
         int clientFd = tcp::acceptClient(cListenFd);
 
@@ -63,6 +70,7 @@ void Server::acceptClients() {
 
             break;
         }
+
         cEpWorker[cEpWorkerIndex++ % cEpWorkerCount]->listen(clientFd);
     }
     //
@@ -83,6 +91,10 @@ void Server::stop() {
     if (cEventFd >= 0) {
         ::close(cEventFd);
         cEventFd = -1;
+    }
+
+    for (auto& worker : cEpWorker) {
+        worker->stop();
     }
 }
 

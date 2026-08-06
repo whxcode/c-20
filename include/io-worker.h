@@ -44,12 +44,36 @@ public:
             file::printError("IO Worker create epoll error");
         }
 
-        std::thread([this]() {
+        cThread = std::move(std::thread([this]() {
             run();
-        }).detach();
+        }));
+    }
+
+    ~EpWorker() {
+        cStopped = true;
+
+        cWake.notify();
+
+        if (cThread.joinable()) {
+            cThread.join();
+        }
+
+        if (cEpfd >= 0) {
+            ::close(cEpfd);
+        }
     }
 
 public:
+    void stop() {
+        cStopped = true;
+        cWake.notify();
+
+        if (cThread.joinable()) {
+            cThread.join();
+        }
+        std::cout << "Epoll Worker exit !" << std::endl;
+    }
+
     void listen(const int fd) {
         net::ctl(cEpfd, net::Operation::Add, fd, net::Read | net::EdgeTriggered);
     }
@@ -77,6 +101,8 @@ public:
 
             closePendingSessions();
         }
+
+        std::cout << "EpllWroker端退出" << std::endl;
     }
 
     void handleWakeup() {
@@ -174,6 +200,10 @@ public:
 
                 context->second->cancel();
                 cContexts.erase(context);
+
+                if (cCloseCallBack) {
+                    cCloseCallBack();
+                }
             }
 
             cReadStates.erase(fd);
@@ -184,6 +214,10 @@ public:
         cPendingClose.clear();
     }
 
+    void setCloseCallBack(std::function<void()> callBack) {
+        cCloseCallBack = std::move(callBack);
+    }
+
     sp<Ctx> readRequest(int clientFd) {
         auto& readState = cReadStates[clientFd];
         if (!readState) {
@@ -191,12 +225,18 @@ public:
         }
 
         const ssize_t readSize = readState->buffer.readfd(clientFd, nullptr);
+
         if (readSize < 0) {
             detach(clientFd);
             return nullptr;
         }
+
         if (readSize == 0 && readState->buffer.empty()) {
             detach(clientFd);
+            return nullptr;
+        }
+
+        if (cContexts.contains(clientFd)) {
             return nullptr;
         }
 
@@ -253,6 +293,7 @@ private:
     int cMaxEvents{1024};
     bool cStopped{false};
     Wake cWake{};
+    std::thread cThread{};
 
     std::queue<ITask> cCompletions{};
     std::mutex cCompletionMutex{};
@@ -262,4 +303,5 @@ private:
     std::unordered_map<int, sp<Ctx>> cContexts{};
     Router& cRouter;
     Workers& cWorkers;
+    std::function<void()> cCloseCallBack{nullptr};
 };

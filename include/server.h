@@ -36,6 +36,6 @@ private:
     Router cRouter{};
     Workers cWorkers{};
     std::vector<sp<EpWorker>> cEpWorker{};
-    size_t cEpWorkerCount{10};
+    size_t cEpWorkerCount{1};
     size_t cEpWorkerIndex{0};
 };

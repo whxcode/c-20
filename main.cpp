@@ -27,6 +27,8 @@ int main(int argc, char* argv[]) {
     ser.useStaticServer("/editor", Server::StaticHandle);
 
     ser.get("/list", [](const HttpRequest&) {
+        std::this_thread::sleep_for(std::chrono::seconds(4));
+
         static constexpr std::array<std::string_view, 5> names{
             "Alice", "Bob", "Chen", "Diana", "Eric",
         };
